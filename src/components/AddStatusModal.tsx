@@ -297,7 +297,12 @@ export default function AddStatusModal({
                 whileTap={{ scale: 0.98 }}
                 onClick={handleSubmit}
                 disabled={!status.trim() || loading}
-                className={`w-full rounded-full px-6 py-3.5 font-bold text-white transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-40 disabled:cursor-not-allowed ${userButtonClass}`}
+                style={userId === 'anthony' ? { backgroundColor: '#FEE12B' } : {}}
+                className={`w-full rounded-full px-6 py-3.5 font-bold transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-40 disabled:cursor-not-allowed ${
+                  userId === 'anthony'
+                    ? 'text-gray-900 hover:brightness-95'
+                    : `text-white ${userButtonClass}`
+                }`}
               >
                 {loading ? 'Saving... 💜' : mode === 'edit' ? 'Save Changes ✨' : 'Set Status ✨'}
               </motion.button>

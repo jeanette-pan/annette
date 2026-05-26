@@ -246,7 +246,12 @@ export default function HomePage() {
                   whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(167,139,250,0.3)' }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => setShowAddModal(true)}
-                  className={`w-full rounded-3xl px-6 py-5 font-bold text-white text-lg shadow-lg transition-all duration-200 flex items-center justify-center gap-3 ${userConfig?.buttonClass ?? 'bg-violet-400 hover:bg-violet-500'}`}
+                  style={currentUser.userId === 'anthony' ? { backgroundColor: '#FEE12B' } : {}}
+                  className={`w-full rounded-3xl px-6 py-5 font-bold text-lg shadow-lg transition-all duration-200 flex items-center justify-center gap-3 ${
+                    currentUser.userId === 'anthony'
+                      ? 'text-gray-900 hover:brightness-95'
+                      : `text-white ${userConfig?.buttonClass ?? 'bg-violet-400 hover:bg-violet-500'}`
+                  }`}
                 >
                   <span className="text-2xl">{userConfig?.mascot}</span>
                   <span>What are you up to? ✨</span>

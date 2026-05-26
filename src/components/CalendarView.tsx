@@ -434,7 +434,7 @@ export default function CalendarView() {
                       {ev.isShared && <span className="text-xs flex-shrink-0">💚</span>}
                       <button
                         onClick={() => handleDeleteEvent(ev.id)}
-                        className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-red-100 text-red-400 transition-all flex-shrink-0"
+                        className="p-1 rounded-lg hover:bg-red-100 text-red-300 hover:text-red-500 transition-all flex-shrink-0"
                         title="Delete event"
                       >
                         <X size={13} />
