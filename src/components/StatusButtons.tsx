@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { format } from 'date-fns'
 import { PASTEL_COLORS } from '@/lib/statusConfig'
+import Link from 'next/link'
 
 export type StatusFormData = {
   status: string
@@ -14,22 +15,56 @@ export type StatusFormData = {
   endTime?: string
 }
 
+type StatusTemplate = {
+  id: string
+  userId: string
+  name: string
+  status: string
+  emoji: string
+  color: string
+  note?: string | null
+}
+
 type Props = {
   onSubmit: (data: StatusFormData) => void
   loading: boolean
   userMascot: string
   userButtonClass: string
+  userId?: string
 }
 
-export default function StatusForm({ onSubmit, loading, userMascot, userButtonClass }: Props) {
+export default function StatusForm({ onSubmit, loading, userMascot, userButtonClass, userId }: Props) {
   const [status, setStatus] = useState('')
   const [emoji, setEmoji] = useState('✨')
   const [note, setNote] = useState('')
   const [color, setColor] = useState<string>(PASTEL_COLORS[0].hex)
   const [startTime, setStartTime] = useState(format(new Date(), "yyyy-MM-dd'T'HH:mm"))
   const [endTime, setEndTime] = useState('')
+  const [templates, setTemplates] = useState<StatusTemplate[]>([])
 
-  const handleSubmit = () => {
+  const fetchTemplates = useCallback(async () => {
+    if (!userId) return
+    try {
+      const res = await fetch(`/api/templates?userId=${userId}`)
+      const data = await res.json()
+      setTemplates(data.templates ?? [])
+    } catch {
+      // silently ignore
+    }
+  }, [userId])
+
+  useEffect(() => {
+    fetchTemplates()
+  }, [fetchTemplates])
+
+  const applyTemplate = (template: StatusTemplate) => {
+    setStatus(template.status)
+    setEmoji(template.emoji)
+    setColor(template.color)
+    setNote(template.note ?? '')
+  }
+
+  const handleSubmit = async () => {
     if (!status.trim()) return
     onSubmit({
       status: status.trim(),
@@ -45,10 +80,55 @@ export default function StatusForm({ onSubmit, loading, userMascot, userButtonCl
     setColor(PASTEL_COLORS[0].hex)
     setStartTime(format(new Date(), "yyyy-MM-dd'T'HH:mm"))
     setEndTime('')
+    // Refresh templates after submit (in case a template was created concurrently)
+    fetchTemplates()
   }
+
+  const visibleTemplates = templates.slice(0, 6)
 
   return (
     <div className="space-y-4">
+      {/* Template chips */}
+      {visibleTemplates.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-xs font-bold text-gray-400 uppercase tracking-wide">Quick Templates</label>
+            <Link
+              href="/templates"
+              className="text-xs font-semibold text-violet-500 hover:text-violet-700 transition-colors"
+            >
+              Manage 📋
+            </Link>
+          </div>
+          <div className="flex flex-wrap gap-2 max-h-20 overflow-y-auto">
+            {visibleTemplates.map((tpl) => (
+              <button
+                key={tpl.id}
+                onClick={() => applyTemplate(tpl)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-gray-700 border border-white/60 shadow-sm hover:shadow-md hover:scale-105 transition-all duration-150"
+                style={{ backgroundColor: tpl.color }}
+                title={tpl.status}
+              >
+                <span>{tpl.emoji}</span>
+                <span>{tpl.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Manage link even if no templates */}
+      {visibleTemplates.length === 0 && userId && (
+        <div className="flex justify-end">
+          <Link
+            href="/templates"
+            className="text-xs font-semibold text-violet-400 hover:text-violet-600 transition-colors"
+          >
+            + Add Templates 📋
+          </Link>
+        </div>
+      )}
+
       {/* Emoji + Status name */}
       <div className="flex gap-3">
         <div>

@@ -59,7 +59,7 @@ function EntryCard({ entry, now }: { entry: StatusEntry; now: Date }) {
       </div>
 
       <div className="text-xs text-gray-400 mt-0.5">
-        {formatDurationFromDates(entry.startTime, entry.endTime)}
+        {formatDurationFromDates(entry.startTime, entry.endTime ?? null)}
         {isActive && (
           <span className="ml-1 text-green-500 font-medium">
             · active

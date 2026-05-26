@@ -1,8 +1,9 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { getUserConfig } from '@/lib/statusConfig'
-import { formatTime } from '@/lib/utils'
+import { formatTime, formatDurationFromDates, isSleepStatus } from '@/lib/utils'
 
 type StatusEntry = {
   id: string
@@ -27,6 +28,22 @@ type Props = {
 export default function CurrentStatusCard({ userId, userName, entry, isMe }: Props) {
   const userConfig = getUserConfig(userId)
   const cardColor = entry?.color ?? userConfig.themeHex
+  const [duration, setDuration] = useState<string>('')
+
+  useEffect(() => {
+    if (!entry) {
+      setDuration('')
+      return
+    }
+    const update = () => {
+      setDuration(formatDurationFromDates(entry.startTime, entry.endTime ?? null))
+    }
+    update()
+    const interval = setInterval(update, 60000)
+    return () => clearInterval(interval)
+  }, [entry])
+
+  const isSleep = entry ? isSleepStatus(entry.status) : false
 
   return (
     <motion.div
@@ -54,8 +71,13 @@ export default function CurrentStatusCard({ userId, userName, entry, isMe }: Pro
         </div>
 
         {/* Status emoji — floats gently */}
-        <div className="text-5xl animate-float my-2">
+        <div className="text-5xl animate-float my-2 relative">
           {entry?.emoji ?? userConfig.mascot}
+          {isSleep && (
+            <span className="absolute -top-1 -right-3 text-sm bg-indigo-100 text-indigo-600 rounded-full px-1.5 py-0.5 font-semibold text-xs">
+              😴
+            </span>
+          )}
         </div>
 
         <p className="text-xl font-extrabold text-gray-700">
@@ -65,6 +87,13 @@ export default function CurrentStatusCard({ userId, userName, entry, isMe }: Pro
         {entry && (
           <p className="text-xs text-gray-500 font-medium">
             Since {formatTime(entry.startTime)}
+          </p>
+        )}
+
+        {/* Live duration timer */}
+        {entry && !entry.endTime && duration && (
+          <p className="text-xs font-semibold text-gray-500 bg-white/50 rounded-full px-3 py-1">
+            for {duration}
           </p>
         )}
 

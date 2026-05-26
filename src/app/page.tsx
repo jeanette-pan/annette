@@ -168,6 +168,7 @@ export default function HomePage() {
                     loading={loading}
                     userMascot={userConfig?.mascot ?? '🐧'}
                     userButtonClass={userConfig?.buttonClass ?? 'bg-violet-400 hover:bg-violet-500'}
+                    userId={currentUser?.userId}
                   />
                 </>
               )}
