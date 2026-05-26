@@ -50,6 +50,10 @@ export function getRandomMessage(userId: string): string {
   return msgs[Math.floor(Math.random() * msgs.length)]
 }
 
+export function getPartnerName(userId: string): string {
+  return userId === 'jeanette' ? 'Anthony' : 'Jeanette'
+}
+
 export const PASTEL_COLORS = [
   { name: 'Lavender', hex: '#e9d5ff' },
   { name: 'Lilac', hex: '#ddd6fe' },

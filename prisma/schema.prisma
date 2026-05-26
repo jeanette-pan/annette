@@ -15,6 +15,7 @@ model StatusEntry {
   emoji     String    @default("✨")
   color     String    @default("#e9d5ff")
   note      String?
+  isShared  Boolean   @default(false)
   startTime DateTime  @default(now())
   endTime   DateTime?
   date      String
@@ -30,6 +31,20 @@ model StatusTemplate {
   emoji     String   @default("✨")
   color     String   @default("#e9d5ff")
   note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CalendarEvent {
+  id        String   @id @default(cuid())
+  title     String
+  date      String   // YYYY-MM-DD
+  startTime String?  // HH:MM (24h)
+  endTime   String?  // HH:MM (24h)
+  note      String?
+  color     String   @default("#d1fae5")
+  eventType String   @default("event")
+  isShared  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

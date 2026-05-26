@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { userId, userName, status, emoji, note, color, startTime, endTime } = body
+    const { userId, userName, status, emoji, note, color, startTime, endTime, isShared } = body
 
     if (!userId || !userName || !status) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -62,6 +62,7 @@ export async function POST(request: NextRequest) {
         startTime: parsedStart,
         endTime: parsedEnd,
         date: dateStr,
+        isShared: isShared ?? false,
       },
     })
 
