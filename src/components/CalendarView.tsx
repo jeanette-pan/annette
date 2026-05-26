@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, isToday, isSameDay } from 'date-fns'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import DailyTimeline from './DailyTimeline'
+import SplitTimeline from './SplitTimeline'
 
 type StatusEntry = {
   id: string
@@ -175,7 +175,7 @@ export default function CalendarView() {
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.3 }}
           >
-            <DailyTimeline
+            <SplitTimeline
               entries={dayEntries}
               date={format(selectedDate, 'yyyy-MM-dd')}
             />

@@ -21,3 +21,15 @@ model StatusEntry {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 }
+
+model StatusTemplate {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  status    String
+  emoji     String   @default("✨")
+  color     String   @default("#e9d5ff")
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
