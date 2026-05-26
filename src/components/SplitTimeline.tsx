@@ -72,9 +72,9 @@ function EntryCard({
         <span className="absolute top-2 right-2 w-2 h-2 bg-green-400 rounded-full border-2 border-white animate-pulse z-10" />
       )}
 
-      {/* Edit/delete buttons — always visible for touch support */}
+      {/* Edit/delete on hover */}
       {(onEdit || onDelete) && (
-        <div className="absolute top-1.5 right-1.5 flex gap-1 bg-white/95 rounded-xl px-1.5 py-1 shadow-md z-10">
+        <div className="absolute top-1.5 right-1.5 hidden group-hover:flex gap-1 bg-white/95 rounded-xl px-1.5 py-1 shadow-md z-10">
           {onEdit && (
             <button
               onClick={(e) => { e.stopPropagation(); onEdit(entry) }}
