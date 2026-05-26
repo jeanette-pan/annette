@@ -1,0 +1,8 @@
+node_modules/
+.next/
+prisma/dev.db
+prisma/prisma/dev.db
+*.db
+*.db-journal
+.env.local
+.DS_Store

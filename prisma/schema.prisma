@@ -1,0 +1,22 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model StatusEntry {
+  id        String    @id @default(cuid())
+  userId    String
+  userName  String
+  status    String
+  emoji     String    @default("✨")
+  note      String?
+  startTime DateTime  @default(now())
+  endTime   DateTime?
+  date      String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
