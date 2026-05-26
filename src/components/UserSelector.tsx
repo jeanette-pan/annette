@@ -82,12 +82,12 @@ export default function UserSelector() {
             <motion.button
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.96 }}
-              onClick={() => selectUser('partner', 'Partner')}
-              className="flex flex-col items-center justify-center p-6 rounded-2xl bg-green-100 border-2 border-green-200 hover:border-green-400 transition-all duration-200 shadow-sm hover:shadow-md"
+              onClick={() => selectUser('anthony', 'Anthony')}
+              className="flex flex-col items-center justify-center p-6 rounded-2xl bg-yellow-100 border-2 border-yellow-200 hover:border-yellow-400 transition-all duration-200 shadow-sm hover:shadow-md"
             >
               <span className="text-4xl mb-2">🦕</span>
-              <span className="font-bold text-green-700 text-lg">I&apos;m Partner</span>
-              <span className="text-green-400 text-sm mt-1">the friendly dino</span>
+              <span className="font-bold text-yellow-700 text-lg">I&apos;m Anthony</span>
+              <span className="text-yellow-500 text-sm mt-1">the friendly dino</span>
             </motion.button>
           </div>
         </motion.div>

@@ -13,6 +13,7 @@ model StatusEntry {
   userName  String
   status    String
   emoji     String    @default("✨")
+  color     String    @default("#e9d5ff")
   note      String?
   startTime DateTime  @default(now())
   endTime   DateTime?

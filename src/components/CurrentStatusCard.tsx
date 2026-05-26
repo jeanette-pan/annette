@@ -1,7 +1,7 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { getStatusConfig } from '@/lib/statusConfig'
+import { getUserConfig } from '@/lib/statusConfig'
 import { formatTime } from '@/lib/utils'
 
 type StatusEntry = {
@@ -10,6 +10,7 @@ type StatusEntry = {
   userName: string
   status: string
   emoji: string
+  color: string
   note?: string | null
   startTime: string | Date
   endTime?: string | Date | null
@@ -24,38 +25,52 @@ type Props = {
 }
 
 export default function CurrentStatusCard({ userId, userName, entry, isMe }: Props) {
-  const config = entry ? getStatusConfig(entry.status) : null
-
-  const cardBg = config?.bgColor ?? 'bg-gray-100'
-  const displayEmoji = entry?.emoji ?? '❓'
-  const statusLabel = entry?.status ?? 'Unknown'
-  const mascotMessage = config?.message ?? 'Thinking of you 💜'
+  const userConfig = getUserConfig(userId)
+  const cardColor = entry?.color ?? userConfig.themeHex
 
   return (
     <motion.div
+      key={entry?.id ?? `empty-${userId}`}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: 'easeOut' }}
-      className={`${cardBg} rounded-3xl shadow-lg border border-white/60 p-6 relative overflow-hidden`}
+      className="rounded-3xl shadow-lg border border-white/60 p-6 relative overflow-hidden"
+      style={{ backgroundColor: cardColor }}
     >
       {isMe && (
-        <span className="absolute top-3 right-3 bg-violet-400 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-sm">
+        <span
+          className="absolute top-3 right-3 text-xs font-bold px-2.5 py-1 rounded-full shadow-sm text-white"
+          style={{ backgroundColor: userConfig.accentHex }}
+        >
           you
         </span>
       )}
 
       <div className="flex flex-col items-center text-center gap-2">
-        <p className="text-sm font-bold text-gray-500 uppercase tracking-wider">{userName}</p>
-
-        <div className="text-5xl animate-float my-2">
-          {displayEmoji}
+        {/* User label with mascot */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-xl">{userConfig.mascot}</span>
+          <p className="text-sm font-bold text-gray-600">{userName}</p>
         </div>
 
-        <p className="text-xl font-extrabold text-gray-700">{statusLabel}</p>
+        {/* Status emoji — floats gently */}
+        <div className="text-5xl animate-float my-2">
+          {entry?.emoji ?? userConfig.mascot}
+        </div>
+
+        <p className="text-xl font-extrabold text-gray-700">
+          {entry?.status ?? 'No status yet'}
+        </p>
 
         {entry && (
           <p className="text-xs text-gray-500 font-medium">
             Since {formatTime(entry.startTime)}
+          </p>
+        )}
+
+        {entry?.endTime && (
+          <p className="text-xs text-gray-400 font-medium">
+            Until {formatTime(entry.endTime)}
           </p>
         )}
 
@@ -65,7 +80,11 @@ export default function CurrentStatusCard({ userId, userName, entry, isMe }: Pro
           </p>
         )}
 
-        <p className="text-xs text-gray-400 mt-2">{mascotMessage}</p>
+        <p className="text-xs text-gray-500 mt-2">
+          {entry
+            ? `Thinking of you ${userConfig.mascot}`
+            : userConfig.messages[0]}
+        </p>
       </div>
     </motion.div>
   )

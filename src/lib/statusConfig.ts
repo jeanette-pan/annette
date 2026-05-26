@@ -1,104 +1,66 @@
-export type StatusConfig = {
-  label: string
-  emoji: string
-  mascot: string
-  message: string
-  bgColor: string
-  textColor: string
-}
-
-export const DEFAULT_STATUSES: StatusConfig[] = [
-  {
-    label: 'Sleeping',
-    emoji: '💤',
+export const USERS = {
+  jeanette: {
+    id: 'jeanette',
+    name: 'Jeanette',
     mascot: '🐧',
-    message: 'Rest well, sleepy penguin 🐧',
-    bgColor: 'bg-violet-100',
-    textColor: 'text-violet-700',
+    mascotLabel: 'cozy penguin',
+    bgClass: 'bg-violet-100',
+    borderClass: 'border-violet-200',
+    textClass: 'text-violet-700',
+    themeHex: '#ede9fe',
+    accentHex: '#8b5cf6',
+    buttonClass: 'bg-violet-400 hover:bg-violet-500',
+    messages: [
+      'Thinking of you 💜',
+      'Miss you, penguin 🐧',
+      'Hope you\'re having a wonderful day 💜',
+      'Sending you all my love 🐧💜',
+    ],
   },
-  {
-    label: 'Eating',
-    emoji: '🍱',
-    mascot: '🐥',
-    message: 'Enjoy your meal, little duck 🐥',
-    bgColor: 'bg-yellow-100',
-    textColor: 'text-yellow-700',
-  },
-  {
-    label: 'Working',
-    emoji: '💼',
+  anthony: {
+    id: 'anthony',
+    name: 'Anthony',
     mascot: '🦕',
-    message: 'Work hard, little dino! 🦕',
-    bgColor: 'bg-blue-100',
-    textColor: 'text-blue-700',
+    mascotLabel: 'friendly dino',
+    bgClass: 'bg-yellow-100',
+    borderClass: 'border-yellow-200',
+    textClass: 'text-yellow-700',
+    themeHex: '#fef9c3',
+    accentHex: '#d97706',
+    buttonClass: 'bg-yellow-400 hover:bg-yellow-500',
+    messages: [
+      'Thinking of Anthony 💛',
+      'Hope the dino is doing well 🦕',
+      'Miss you so much! 💛',
+      'Sending all my love, little dino 🦕💛',
+    ],
   },
-  {
-    label: 'Studying',
-    emoji: '📚',
-    mascot: '🐧',
-    message: 'Study well, smart penguin 🐧',
-    bgColor: 'bg-indigo-100',
-    textColor: 'text-indigo-700',
-  },
-  {
-    label: 'Gaming',
-    emoji: '🎮',
-    mascot: '🦖',
-    message: 'Have fun gaming, dino! 🦖',
-    bgColor: 'bg-green-100',
-    textColor: 'text-green-700',
-  },
-  {
-    label: 'Out',
-    emoji: '🚶',
-    mascot: '🐥',
-    message: 'Stay safe out there, duck 🐥',
-    bgColor: 'bg-teal-100',
-    textColor: 'text-teal-700',
-  },
-  {
-    label: 'Resting',
-    emoji: '😴',
-    mascot: '🐧',
-    message: 'Resting up, cozy penguin 🐧',
-    bgColor: 'bg-pink-100',
-    textColor: 'text-pink-700',
-  },
-  {
-    label: 'Showering',
-    emoji: '🚿',
-    mascot: '🐥',
-    message: 'Splish splash, happy duck 🐥',
-    bgColor: 'bg-cyan-100',
-    textColor: 'text-cyan-700',
-  },
-  {
-    label: 'Exercising',
-    emoji: '🏃',
-    mascot: '🦕',
-    message: 'Go go go, active dino! 🦕',
-    bgColor: 'bg-orange-100',
-    textColor: 'text-orange-700',
-  },
-  {
-    label: 'Custom',
-    emoji: '✨',
-    mascot: '🐥',
-    message: 'Thinking of you 💜',
-    bgColor: 'bg-rose-100',
-    textColor: 'text-rose-700',
-  },
-]
+} as const
 
-export const UNKNOWN_STATUS: StatusConfig = {
-  label: 'Unknown',
-  emoji: '❓',
-  mascot: '🐥',
-  message: 'Thinking of you 💜',
-  bgColor: 'bg-gray-100',
-  textColor: 'text-gray-700',
+export type UserId = keyof typeof USERS
+export type UserConfig = (typeof USERS)[UserId]
+
+export function getUserConfig(userId: string): UserConfig {
+  return (USERS as Record<string, UserConfig>)[userId] ?? USERS.jeanette
 }
 
-export function getStatusConfig(label: string): StatusConfig {
-  return DEFAULT_STATUSES.find((s) => s.label === label) ?? UNKNOWN_STATUS
+export function getRandomMessage(userId: string): string {
+  const config = getUserConfig(userId)
+  const msgs = config.messages as readonly string[]
+  return msgs[Math.floor(Math.random() * msgs.length)]
 }
+
+export const PASTEL_COLORS = [
+  { name: 'Lavender', hex: '#e9d5ff' },
+  { name: 'Lilac', hex: '#ddd6fe' },
+  { name: 'Lemon', hex: '#fef9c3' },
+  { name: 'Butter', hex: '#fef08a' },
+  { name: 'Mint', hex: '#d1fae5' },
+  { name: 'Sage', hex: '#bbf7d0' },
+  { name: 'Peach', hex: '#fed7aa' },
+  { name: 'Rose', hex: '#fce7f3' },
+  { name: 'Blush', hex: '#fbcfe8' },
+  { name: 'Sky', hex: '#bae6fd' },
+  { name: 'Periwinkle', hex: '#c7d2fe' },
+  { name: 'Seafoam', hex: '#a7f3d0' },
+] as const

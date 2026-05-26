@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    const userIds = ['jeanette', 'partner']
+    const userIds = ['jeanette', 'anthony']
     const entries: Record<string, object | null> = {}
 
     for (const userId of userIds) {

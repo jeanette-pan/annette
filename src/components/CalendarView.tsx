@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, isToday, isSameDay } from 'date-fns'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { getStatusConfig } from '@/lib/statusConfig'
 import DailyTimeline from './DailyTimeline'
 
 type StatusEntry = {
@@ -13,6 +12,7 @@ type StatusEntry = {
   userName: string
   status: string
   emoji: string
+  color: string
   note?: string | null
   startTime: string | Date
   endTime?: string | Date | null
@@ -123,7 +123,8 @@ export default function CalendarView() {
               const todayDay = isToday(day)
               const selected = selectedDate && isSameDay(day, selectedDate)
               // Get up to 3 unique statuses for dots
-              const uniqueStatuses = Array.from(new Set(dayEntryList.map((e) => e.status))).slice(0, 3)
+              // Unique entries by color (up to 4 dots per day)
+              const dotEntries = dayEntryList.slice(0, 4)
 
               return (
                 <motion.button
@@ -146,17 +147,15 @@ export default function CalendarView() {
                   >
                     {format(day, 'd')}
                   </span>
-                  {uniqueStatuses.length > 0 && (
+                  {dotEntries.length > 0 && (
                     <div className="flex gap-0.5 mt-1 flex-wrap justify-center">
-                      {uniqueStatuses.map((status) => {
-                        const cfg = getStatusConfig(status)
-                        return (
-                          <span
-                            key={status}
-                            className={`w-2 h-2 rounded-full ${cfg.bgColor} border border-white/60`}
-                          />
-                        )
-                      })}
+                      {dotEntries.map((entry) => (
+                        <span
+                          key={entry.id}
+                          className="w-2 h-2 rounded-full border border-white/60"
+                          style={{ backgroundColor: entry.color }}
+                        />
+                      ))}
                     </div>
                   )}
                 </motion.button>

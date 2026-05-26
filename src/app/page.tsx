@@ -7,10 +7,10 @@ import AnimatedBackground from '@/components/AnimatedBackground'
 import Navbar from '@/components/Navbar'
 import UserSelector, { useCurrentUser } from '@/components/UserSelector'
 import CurrentStatusCard from '@/components/CurrentStatusCard'
-import StatusButtons from '@/components/StatusButtons'
-import CustomStatusModal from '@/components/CustomStatusModal'
+import StatusForm, { type StatusFormData } from '@/components/StatusButtons'
 import DailyTimeline from '@/components/DailyTimeline'
 import { getTodayString } from '@/lib/utils'
+import { getUserConfig } from '@/lib/statusConfig'
 
 type StatusEntry = {
   id: string
@@ -18,6 +18,7 @@ type StatusEntry = {
   userName: string
   status: string
   emoji: string
+  color: string
   note?: string | null
   startTime: string | Date
   endTime?: string | Date | null
@@ -26,18 +27,18 @@ type StatusEntry = {
 
 type CurrentEntries = {
   jeanette: StatusEntry | null
-  partner: StatusEntry | null
+  anthony: StatusEntry | null
 }
 
 export default function HomePage() {
   const currentUser = useCurrentUser()
-  const [currentEntries, setCurrentEntries] = useState<CurrentEntries>({ jeanette: null, partner: null })
+  const [currentEntries, setCurrentEntries] = useState<CurrentEntries>({ jeanette: null, anthony: null })
   const [todayEntries, setTodayEntries] = useState<StatusEntry[]>([])
-  const [note, setNote] = useState('')
-  const [showCustomModal, setShowCustomModal] = useState(false)
   const [loading, setLoading] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const today = getTodayString()
+
+  const userConfig = currentUser ? getUserConfig(currentUser.userId) : null
 
   const fetchCurrentStatus = useCallback(async () => {
     try {
@@ -62,15 +63,15 @@ export default function HomePage() {
   useEffect(() => {
     fetchCurrentStatus()
     fetchTodayEntries()
-    // Poll every 30 seconds
+    // Poll every 5 seconds for live updates
     const interval = setInterval(() => {
       fetchCurrentStatus()
       fetchTodayEntries()
-    }, 30000)
+    }, 5000)
     return () => clearInterval(interval)
   }, [fetchCurrentStatus, fetchTodayEntries])
 
-  const handleStatusUpdate = async (status: string, emoji: string) => {
+  const handleStatusSubmit = async (data: StatusFormData) => {
     if (!currentUser) return
     setLoading(true)
     try {
@@ -80,39 +81,14 @@ export default function HomePage() {
         body: JSON.stringify({
           userId: currentUser.userId,
           userName: currentUser.userName,
-          status,
-          emoji,
-          note: note.trim() || null,
+          status: data.status,
+          emoji: data.emoji,
+          note: data.note || null,
+          color: data.color,
+          startTime: data.startTime,
+          endTime: data.endTime,
         }),
       })
-      setNote('')
-      setShowSuccess(true)
-      setTimeout(() => setShowSuccess(false), 2000)
-      await fetchCurrentStatus()
-      await fetchTodayEntries()
-    } catch (err) {
-      console.error('Failed to update status', err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleCustomSubmit = async (status: string, emoji: string, customNote: string) => {
-    if (!currentUser) return
-    setLoading(true)
-    try {
-      await fetch('/api/status', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: currentUser.userId,
-          userName: currentUser.userName,
-          status,
-          emoji,
-          note: customNote || note.trim() || null,
-        }),
-      })
-      setNote('')
       setShowSuccess(true)
       setTimeout(() => setShowSuccess(false), 2000)
       await fetchCurrentStatus()
@@ -129,11 +105,6 @@ export default function HomePage() {
       <AnimatedBackground />
       <Navbar />
       <UserSelector />
-      <CustomStatusModal
-        isOpen={showCustomModal}
-        onClose={() => setShowCustomModal(false)}
-        onSubmit={handleCustomSubmit}
-      />
 
       {/* Success toast */}
       <AnimatePresence>
@@ -145,17 +116,17 @@ export default function HomePage() {
             className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-green-400 text-white font-bold px-6 py-3 rounded-full shadow-lg flex items-center gap-2"
           >
             <Check size={16} />
-            Status updated!
+            Status updated! 💜
           </motion.div>
         )}
       </AnimatePresence>
 
       <main className="max-w-6xl mx-auto px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left: status cards + update UI */}
+          {/* Left: status cards + form */}
           <div className="lg:col-span-2 space-y-6">
 
-            {/* Current Status */}
+            {/* Current status for both users */}
             <section>
               <h2 className="text-lg font-bold text-violet-700 mb-4">Current Status ✨</h2>
               <div className="grid grid-cols-2 gap-4">
@@ -166,18 +137,16 @@ export default function HomePage() {
                   isMe={currentUser?.userId === 'jeanette'}
                 />
                 <CurrentStatusCard
-                  userId="partner"
-                  userName="Partner"
-                  entry={currentEntries.partner}
-                  isMe={currentUser?.userId === 'partner'}
+                  userId="anthony"
+                  userName="Anthony"
+                  entry={currentEntries.anthony}
+                  isMe={currentUser?.userId === 'anthony'}
                 />
               </div>
             </section>
 
-            {/* Update status */}
+            {/* Status update form */}
             <section className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-lg border border-white/60 p-6">
-              <h2 className="text-lg font-bold text-violet-700 mb-4">How are you feeling? 💜</h2>
-
               {!currentUser ? (
                 <div className="text-center py-8 text-gray-400">
                   <div className="text-3xl mb-2 animate-bounce-soft">🐧</div>
@@ -185,32 +154,27 @@ export default function HomePage() {
                 </div>
               ) : (
                 <>
-                  <StatusButtons
-                    onStatusSelect={handleStatusUpdate}
-                    onCustom={() => setShowCustomModal(true)}
-                  />
-
-                  <div className="mt-4">
-                    <input
-                      type="text"
-                      value={note}
-                      onChange={(e) => setNote(e.target.value)}
-                      placeholder="Add a note... 💭"
-                      className="w-full border-2 border-violet-100 rounded-2xl px-4 py-3 text-gray-700 focus:outline-none focus:border-violet-300 bg-violet-50/50 placeholder:text-gray-300 font-medium transition-colors"
-                    />
-                  </div>
-
-                  {loading && (
-                    <div className="mt-3 text-center text-violet-400 text-sm font-semibold animate-shimmer">
-                      Saving... 💜
+                  <div className="flex items-center gap-2 mb-5">
+                    <span className="text-2xl">{userConfig?.mascot}</span>
+                    <div>
+                      <h2 className="text-lg font-bold text-violet-700">What are you up to?</h2>
+                      <p className="text-xs text-gray-400">
+                        Updating as <span className="font-semibold">{currentUser.userName}</span>
+                      </p>
                     </div>
-                  )}
+                  </div>
+                  <StatusForm
+                    onSubmit={handleStatusSubmit}
+                    loading={loading}
+                    userMascot={userConfig?.mascot ?? '🐧'}
+                    userButtonClass={userConfig?.buttonClass ?? 'bg-violet-400 hover:bg-violet-500'}
+                  />
                 </>
               )}
             </section>
           </div>
 
-          {/* Right: today's timeline */}
+          {/* Right: shared live timeline */}
           <div className="lg:col-span-1">
             <DailyTimeline entries={todayEntries} date={today} />
           </div>

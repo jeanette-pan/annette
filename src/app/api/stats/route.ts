@@ -14,12 +14,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'userId is required' }, { status: 400 })
     }
 
-    // Get all entries for this month and user
     const entries = await prisma.statusEntry.findMany({
-      where: {
-        userId,
-        date: { startsWith: month },
-      },
+      where: { userId, date: { startsWith: month } },
       orderBy: { startTime: 'asc' },
     })
 
@@ -28,34 +24,33 @@ export async function GET(request: NextRequest) {
     const monthEnd = new Date(monthStart)
     monthEnd.setMonth(monthEnd.getMonth() + 1)
 
-    const statMap: Record<string, { ms: number; count: number }> = {}
+    const statMap: Record<string, { ms: number; count: number; emoji: string; color: string }> = {}
     let totalMs = 0
 
     for (const entry of entries) {
       const start = new Date(entry.startTime)
       const end = entry.endTime ? new Date(entry.endTime) : now
-
-      // Clip to month boundaries (use local date boundaries based on string matching)
       const clampedStart = start < monthStart ? monthStart : start
       const clampedEnd = end > monthEnd ? monthEnd : end
-
       const durationMs = Math.max(0, clampedEnd.getTime() - clampedStart.getTime())
 
       if (!statMap[entry.status]) {
-        statMap[entry.status] = { ms: 0, count: 0 }
+        statMap[entry.status] = { ms: 0, count: 0, emoji: entry.emoji, color: entry.color }
       }
       statMap[entry.status].ms += durationMs
       statMap[entry.status].count += 1
+      statMap[entry.status].emoji = entry.emoji
+      statMap[entry.status].color = entry.color
       totalMs += durationMs
     }
 
     const totalHours = Math.round((totalMs / 1000 / 3600) * 10) / 10
 
-    const stats: Record<string, { hours: number; percentage: number; count: number }> = {}
-    for (const [status, { ms, count }] of Object.entries(statMap)) {
+    const stats: Record<string, { hours: number; percentage: number; count: number; emoji: string; color: string }> = {}
+    for (const [status, { ms, count, emoji, color }] of Object.entries(statMap)) {
       const hours = Math.round((ms / 1000 / 3600) * 10) / 10
       const percentage = totalMs > 0 ? Math.round((ms / totalMs) * 1000) / 10 : 0
-      stats[status] = { hours, percentage, count }
+      stats[status] = { hours, percentage, count, emoji, color }
     }
 
     return NextResponse.json({ stats, totalHours })

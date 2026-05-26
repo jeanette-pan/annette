@@ -1,6 +1,6 @@
 'use client'
 
-import { getStatusConfig } from '@/lib/statusConfig'
+import { getUserConfig } from '@/lib/statusConfig'
 import { formatTime, formatDate } from '@/lib/utils'
 import { parseISO } from 'date-fns'
 
@@ -10,6 +10,7 @@ type StatusEntry = {
   userName: string
   status: string
   emoji: string
+  color: string
   note?: string | null
   startTime: string | Date
   endTime?: string | Date | null
@@ -24,14 +25,18 @@ type Props = {
 export default function DailyTimeline({ entries, date }: Props) {
   const dateLabel = formatDate(parseISO(date))
 
+  const sorted = [...entries].sort(
+    (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+  )
+
   return (
     <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-lg border border-white/60 p-6 h-full">
       <div className="mb-5">
-        <h2 className="text-lg font-bold text-violet-700">Today&apos;s Timeline</h2>
+        <h2 className="text-lg font-bold text-violet-700">Our Timeline 🌸</h2>
         <p className="text-sm text-gray-400 font-medium">{dateLabel}</p>
       </div>
 
-      {entries.length === 0 ? (
+      {sorted.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <div className="text-4xl mb-3 animate-bounce-soft">🌸</div>
           <p className="text-gray-400 font-medium">No activities yet today</p>
@@ -39,44 +44,51 @@ export default function DailyTimeline({ entries, date }: Props) {
         </div>
       ) : (
         <div className="relative">
-          {/* Vertical line */}
+          {/* Vertical connector line */}
           <div className="absolute left-4 top-2 bottom-2 w-0.5 bg-violet-100 rounded-full" />
 
           <div className="space-y-4">
-            {entries.map((entry, idx) => {
-              const config = getStatusConfig(entry.status)
+            {sorted.map((entry, idx) => {
+              const userConfig = getUserConfig(entry.userId)
               const isActive = !entry.endTime
-              const isLast = idx === entries.length - 1
+              const isLast = idx === sorted.length - 1
 
               return (
                 <div key={entry.id} className="flex gap-4 relative">
-                  {/* Dot */}
+                  {/* Dot — uses user mascot */}
                   <div className="relative flex-shrink-0 mt-1">
                     <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center text-sm shadow-sm border-2 border-white ${config.bgColor}`}
+                      className="w-8 h-8 rounded-full flex items-center justify-center text-sm shadow-sm border-2 border-white"
+                      style={{ backgroundColor: userConfig.themeHex }}
                     >
-                      {entry.emoji}
+                      {userConfig.mascot}
                     </div>
                     {isActive && isLast && (
                       <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-green-400 rounded-full border-2 border-white animate-pulse" />
                     )}
                   </div>
 
-                  {/* Content */}
-                  <div className={`flex-1 ${config.bgColor} rounded-2xl p-3 border border-white/60 shadow-sm`}>
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <div className="flex items-center gap-1.5">
+                  {/* Entry card — uses chosen status color */}
+                  <div
+                    className="flex-1 rounded-2xl p-3 border border-white/70 shadow-sm"
+                    style={{ backgroundColor: entry.color }}
+                  >
+                    <div className="flex items-start justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-base">{entry.emoji}</span>
                         <span className="font-bold text-gray-700 text-sm">{entry.status}</span>
-                        {entry.userId && (
-                          <span className="text-xs text-gray-400 bg-white/60 rounded-full px-2 py-0.5 font-medium">
-                            {entry.userName}
-                          </span>
-                        )}
+                        {/* User badge */}
+                        <span
+                          className="text-xs rounded-full px-2 py-0.5 font-semibold border border-white/60"
+                          style={{ backgroundColor: userConfig.themeHex, color: userConfig.accentHex }}
+                        >
+                          {userConfig.mascot} {entry.userName}
+                        </span>
                       </div>
                       <span className="text-xs text-gray-500 font-medium whitespace-nowrap">
                         {formatTime(entry.startTime)}
                         {isActive ? (
-                          <span className="text-green-500 font-bold"> → Now</span>
+                          <span className="text-green-600 font-bold"> → Now</span>
                         ) : entry.endTime ? (
                           <> – {formatTime(entry.endTime)}</>
                         ) : null}

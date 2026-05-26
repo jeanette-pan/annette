@@ -3,32 +3,22 @@
 import { useState, useEffect, useCallback } from 'react'
 import { format, addMonths, subMonths } from 'date-fns'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts'
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { motion } from 'framer-motion'
-import { getStatusConfig } from '@/lib/statusConfig'
 import { useCurrentUser } from './UserSelector'
+import { getUserConfig } from '@/lib/statusConfig'
+
+type StatusStat = {
+  hours: number
+  percentage: number
+  count: number
+  emoji: string
+  color: string
+}
 
 type StatsData = {
-  stats: Record<string, { hours: number; percentage: number; count: number }>
+  stats: Record<string, StatusStat>
   totalHours: number
-}
-
-const STATUS_COLORS: Record<string, string> = {
-  Sleeping: '#c4b5fd',
-  Eating: '#fde68a',
-  Working: '#bfdbfe',
-  Studying: '#c7d2fe',
-  Gaming: '#bbf7d0',
-  Out: '#99f6e4',
-  Resting: '#fbcfe8',
-  Showering: '#a5f3fc',
-  Exercising: '#fed7aa',
-  Custom: '#fecdd3',
-  Unknown: '#e5e7eb',
-}
-
-function getColor(status: string): string {
-  return STATUS_COLORS[status] ?? '#e5e7eb'
 }
 
 export default function StatsView() {
@@ -57,11 +47,15 @@ export default function StatsView() {
     fetchStats()
   }, [fetchStats])
 
+  const userConfig = currentUser ? getUserConfig(currentUser.userId) : null
+
   const pieData = statsData
     ? Object.entries(statsData.stats).map(([status, data]) => ({
         name: status,
         value: data.hours,
         percentage: data.percentage,
+        color: data.color,
+        emoji: data.emoji,
       }))
     : []
 
@@ -89,9 +83,9 @@ export default function StatsView() {
             <h2 className="text-xl font-extrabold text-violet-700">
               {format(currentMonth, 'MMMM yyyy')}
             </h2>
-            {currentUser && (
+            {currentUser && userConfig && (
               <p className="text-sm text-gray-400 font-medium mt-0.5">
-                Stats for {currentUser.userName}
+                {userConfig.mascot} {currentUser.userName}&apos;s stats
               </p>
             )}
           </div>
@@ -142,11 +136,9 @@ export default function StatsView() {
             >
               {topStatus ? (
                 <>
-                  <div className="text-2xl">
-                    {getStatusConfig(topStatus[0]).emoji}
-                  </div>
+                  <div className="text-2xl">{topStatus[1].emoji}</div>
                   <div className="text-xs text-gray-400 font-medium mt-1">Most Common</div>
-                  <div className="text-sm font-bold text-gray-600 mt-0.5">{topStatus[0]}</div>
+                  <div className="text-sm font-bold text-gray-600 mt-0.5 truncate">{topStatus[0]}</div>
                 </>
               ) : (
                 <div className="text-gray-300">—</div>
@@ -184,7 +176,7 @@ export default function StatsView() {
                   dataKey="value"
                 >
                   {pieData.map((entry) => (
-                    <Cell key={entry.name} fill={getColor(entry.name)} stroke="white" strokeWidth={2} />
+                    <Cell key={entry.name} fill={entry.color} stroke="white" strokeWidth={2} />
                   ))}
                 </Pie>
                 <Tooltip
@@ -192,17 +184,20 @@ export default function StatsView() {
                   contentStyle={{ borderRadius: '12px', border: '1px solid #e5e7eb', fontFamily: 'Nunito' }}
                 />
                 <Legend
-                  formatter={(value) => (
-                    <span style={{ fontFamily: 'Nunito', fontSize: '12px', fontWeight: '600' }}>
-                      {getStatusConfig(value).emoji} {value}
-                    </span>
-                  )}
+                  formatter={(value) => {
+                    const entry = pieData.find((p) => p.name === value)
+                    return (
+                      <span style={{ fontFamily: 'Nunito', fontSize: '12px', fontWeight: '600' }}>
+                        {entry?.emoji ?? '✨'} {value}
+                      </span>
+                    )
+                  }}
                 />
               </PieChart>
             </ResponsiveContainer>
           </motion.div>
 
-          {/* Status breakdown table */}
+          {/* Status breakdown */}
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -211,31 +206,29 @@ export default function StatsView() {
           >
             <h3 className="text-lg font-bold text-violet-700 mb-4">Breakdown</h3>
             <div className="space-y-3">
-              {sortedStatuses.map(([status, data]) => {
-                const config = getStatusConfig(status)
-                return (
-                  <div key={status} className={`flex items-center gap-3 p-3 rounded-2xl ${config.bgColor}`}>
-                    <span className="text-xl">{config.emoji}</span>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-bold text-gray-700 text-sm">{status}</span>
-                        <span className="text-xs text-gray-500 font-medium">
-                          {data.hours}h · {data.percentage}% · {data.count}×
-                        </span>
-                      </div>
-                      <div className="w-full bg-white/60 rounded-full h-1.5">
-                        <div
-                          className="h-1.5 rounded-full"
-                          style={{
-                            width: `${data.percentage}%`,
-                            backgroundColor: getColor(status),
-                          }}
-                        />
-                      </div>
+              {sortedStatuses.map(([status, data]) => (
+                <div
+                  key={status}
+                  className="flex items-center gap-3 p-3 rounded-2xl border border-white/60"
+                  style={{ backgroundColor: data.color }}
+                >
+                  <span className="text-xl">{data.emoji}</span>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-gray-700 text-sm">{status}</span>
+                      <span className="text-xs text-gray-500 font-medium">
+                        {data.hours}h · {data.percentage}% · {data.count}×
+                      </span>
+                    </div>
+                    <div className="w-full bg-white/60 rounded-full h-1.5">
+                      <div
+                        className="h-1.5 rounded-full transition-all duration-500"
+                        style={{ width: `${data.percentage}%`, backgroundColor: userConfig?.accentHex ?? '#8b5cf6' }}
+                      />
                     </div>
                   </div>
-                )
-              })}
+                </div>
+              ))}
             </div>
           </motion.div>
         </>

@@ -34,32 +34,34 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { userId, userName, status, emoji, note } = body
+    const { userId, userName, status, emoji, note, color, startTime, endTime } = body
 
-    if (!userId || !userName || !status || !emoji) {
+    if (!userId || !userName || !status) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    const now = new Date()
-    const today = getTodayString()
+    const parsedStart = startTime ? new Date(startTime) : new Date()
+    const parsedEnd = endTime ? new Date(endTime) : null
+    // Use the local date from the startTime string (first 10 chars = YYYY-MM-DD)
+    const dateStr = startTime ? startTime.substring(0, 10) : getTodayString()
 
-    // Close the current active entry for this user
+    // Close the previous active entry for this user, ending it at the new start time
     await prisma.statusEntry.updateMany({
       where: { userId, endTime: null },
-      data: { endTime: now },
+      data: { endTime: parsedStart },
     })
 
-    // Create a new entry
     const entry = await prisma.statusEntry.create({
       data: {
         userId,
         userName,
         status,
-        emoji,
+        emoji: emoji || '✨',
+        color: color || '#e9d5ff',
         note: note || null,
-        startTime: now,
-        endTime: null,
-        date: today,
+        startTime: parsedStart,
+        endTime: parsedEnd,
+        date: dateStr,
       },
     })
 
