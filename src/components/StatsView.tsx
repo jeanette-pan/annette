@@ -10,7 +10,7 @@ import {
 import { motion } from 'framer-motion'
 import { useCurrentUser } from './UserSelector'
 import { getUserConfig } from '@/lib/statusConfig'
-import { getWeekStart, getSleepGoalHours, setSleepGoalHours, isSleepStatus } from '@/lib/utils'
+import { getWeekStart, getSleepGoalHours, setSleepGoalHours, isSleepStatus, isEatingStatus } from '@/lib/utils'
 
 type StatusStat = {
   hours: number
@@ -212,6 +212,11 @@ export default function StatsView() {
   const sleepEntries = sortedStatuses.filter(([status]) => isSleepStatus(status))
   const totalSleepMinutes = sleepEntries.reduce((sum, [, s]) => sum + s.minutes, 0)
   const sleepGoalMinutes = sleepGoal * 60
+
+  // Eating data (for daily goals)
+  const EATING_GOAL = 3
+  const eatingEntries = sortedStatuses.filter(([status]) => isEatingStatus(status))
+  const totalEatingCount = eatingEntries.reduce((sum, [, s]) => sum + s.count, 0)
 
   // Bar chart data — per day/period breakdown
   const barData = statsData?.dailyBreakdown.map((day) => {
@@ -546,7 +551,7 @@ export default function StatsView() {
             </div>
           </motion.div>
 
-          {/* Sleep section */}
+          {/* Sleep section — shown for all periods */}
           {sleepEntries.length > 0 && (
             <motion.div
               initial={{ opacity: 0, y: 16 }}
@@ -554,18 +559,33 @@ export default function StatsView() {
               transition={{ delay: 0.35 }}
               className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-lg border border-white/60 p-6"
             >
-              <h3 className="text-lg font-bold text-violet-700 mb-4">Sleep 😴</h3>
+              <h3 className="text-lg font-bold text-violet-700 mb-3">Sleep 😴</h3>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-gray-600">Total sleep this period</span>
+                <span className="font-bold text-violet-600">{formatMins(totalSleepMinutes)}</span>
+              </div>
+            </motion.div>
+          )}
 
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-gray-600">Total sleep this period</span>
-                  <span className="font-bold text-violet-600">{formatMins(totalSleepMinutes)}</span>
-                </div>
+          {/* Daily Goals — only in daily period */}
+          {period === 'daily' && (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.37 }}
+              className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-lg border border-white/60 p-6"
+            >
+              <h3 className="text-lg font-bold text-violet-700 mb-5">Daily Goals 🎯</h3>
+              <div className="space-y-5">
 
-                {period === 'daily' && (
-                  <>
-                    <div className="flex items-center gap-3">
-                      <label className="text-sm font-semibold text-gray-600 shrink-0">Daily goal</label>
+                {/* Sleep goal */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">😴</span>
+                      <span className="font-semibold text-sm text-gray-700">Sleep</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
                       <input
                         type="number"
                         min={1}
@@ -573,33 +593,56 @@ export default function StatsView() {
                         step={0.5}
                         value={sleepGoal}
                         onChange={(e) => handleSleepGoalChange(parseFloat(e.target.value))}
-                        className="w-20 border-2 border-violet-200 rounded-xl px-3 py-1.5 text-sm font-semibold text-gray-700 focus:outline-none focus:border-violet-400 bg-violet-50"
+                        className="w-14 border-2 border-violet-200 rounded-xl px-2 py-1 text-xs font-semibold text-gray-700 focus:outline-none focus:border-violet-400 bg-violet-50 text-center"
                       />
-                      <span className="text-sm text-gray-400">hr</span>
+                      <span className="text-xs text-gray-400">hr goal</span>
                     </div>
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-500 mb-1.5 font-medium">
+                    <span>{formatMins(totalSleepMinutes)} slept</span>
+                    <span>Goal: {sleepGoal}h</span>
+                  </div>
+                  <div className="w-full bg-violet-100 rounded-full h-2.5">
+                    <div
+                      className="h-2.5 rounded-full transition-all duration-500"
+                      style={{
+                        width: `${Math.min(100, (totalSleepMinutes / sleepGoalMinutes) * 100)}%`,
+                        backgroundColor: '#8b5cf6',
+                      }}
+                    />
+                  </div>
+                  <p className={`text-xs mt-1.5 font-medium ${totalSleepMinutes >= sleepGoalMinutes ? 'text-green-600' : 'text-gray-400'}`}>
+                    {totalSleepMinutes >= sleepGoalMinutes
+                      ? `🎉 Goal hit! +${formatMins(totalSleepMinutes - sleepGoalMinutes)}`
+                      : `${formatMins(sleepGoalMinutes - totalSleepMinutes)} to go`}
+                  </p>
+                </div>
 
-                    <div>
-                      <div className="flex justify-between text-xs text-gray-500 mb-1.5 font-medium">
-                        <span>Slept: {formatMins(totalSleepMinutes)}</span>
-                        <span>Goal: {sleepGoal} hr</span>
-                      </div>
-                      <div className="w-full bg-violet-100 rounded-full h-3">
-                        <div
-                          className="h-3 rounded-full transition-all duration-500"
-                          style={{
-                            width: `${Math.min(100, (totalSleepMinutes / sleepGoalMinutes) * 100)}%`,
-                            backgroundColor: '#8b5cf6',
-                          }}
-                        />
-                      </div>
-                      <p className="text-xs text-gray-400 mt-1.5">
-                        {totalSleepMinutes >= sleepGoalMinutes
-                          ? `Goal reached! 🎉 ${formatMins(totalSleepMinutes - sleepGoalMinutes)} over`
-                          : `Remaining: ${formatMins(sleepGoalMinutes - totalSleepMinutes)}`}
-                      </p>
+                {/* Eating goal */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">🍽️</span>
+                      <span className="font-semibold text-sm text-gray-700">Meals</span>
                     </div>
-                  </>
-                )}
+                    <span className="text-xs text-gray-500 font-medium">{totalEatingCount} / {EATING_GOAL} logged</span>
+                  </div>
+                  <div className="w-full bg-orange-100 rounded-full h-2.5">
+                    <div
+                      className="h-2.5 rounded-full transition-all duration-500"
+                      style={{
+                        width: `${Math.min(100, (totalEatingCount / EATING_GOAL) * 100)}%`,
+                        backgroundColor: '#f97316',
+                      }}
+                    />
+                  </div>
+                  <p className={`text-xs mt-1.5 font-medium ${totalEatingCount >= EATING_GOAL ? 'text-green-600' : 'text-gray-400'}`}>
+                    {totalEatingCount >= EATING_GOAL
+                      ? '🎉 Goal hit!'
+                      : `${EATING_GOAL - totalEatingCount} more meal${EATING_GOAL - totalEatingCount !== 1 ? 's' : ''} to go`}
+                  </p>
+                </div>
+
               </div>
             </motion.div>
           )}

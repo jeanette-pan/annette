@@ -256,7 +256,7 @@ export default function HomePage() {
           </div>
 
           {/* Right: shared live timeline */}
-          <div className="lg:col-span-1">
+          <div className="lg:col-span-1 lg:sticky lg:top-20 lg:self-start">
             <DailyTimeline
               entries={todayEntries}
               date={today}

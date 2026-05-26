@@ -26,14 +26,24 @@ type Props = {
   onDelete?: (entryId: string) => void
 }
 
+function fmtMs(ms: number): string {
+  const mins = Math.floor(ms / 60000)
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  if (h > 0) return `${h}h ${m}m`
+  return `${m}m`
+}
+
 function EntryCard({
   entry,
   now,
+  overlapMs,
   onEdit,
   onDelete,
 }: {
   entry: StatusEntry
   now: Date
+  overlapMs?: number
   onEdit?: (entry: StatusEntry) => void
   onDelete?: (entryId: string) => void
 }) {
@@ -44,10 +54,15 @@ function EntryCard({
   const durationMinutes = Math.floor(Math.max(0, durationMs) / 60000)
   const minHeight = Math.max(52, Math.min(140, durationMinutes * 0.5))
   const isSleep = isSleepStatus(entry.status)
+  const isTogether = overlapMs && overlapMs > 0
 
   return (
     <div
-      className="group relative rounded-2xl p-2.5 border border-white/70 shadow-sm overflow-hidden"
+      className={`group relative rounded-2xl p-2.5 border shadow-sm overflow-hidden transition-all duration-300 ${
+        isTogether
+          ? 'border-green-300 shadow-[0_0_14px_rgba(134,239,172,0.45)] ring-1 ring-green-200'
+          : 'border-white/70'
+      }`}
       style={{ backgroundColor: entry.color, minHeight: `${minHeight}px` }}
     >
       {/* Active pulsing dot */}
@@ -85,9 +100,6 @@ function EntryCard({
         {isSleep && (
           <span className="flex-shrink-0 text-[9px] bg-indigo-100 text-indigo-600 rounded-full px-1 py-0.5 font-semibold leading-tight">😴</span>
         )}
-        {entry.isShared && !isSleep && (
-          <span className="flex-shrink-0 text-[10px] leading-none">💚</span>
-        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-x-0.5 text-[10px] text-gray-500 font-medium mt-1 leading-tight">
@@ -103,6 +115,14 @@ function EntryCard({
         <span>{formatDurationFromDates(entry.startTime, entry.endTime ?? null)}</span>
         {isActive && <span className="text-green-500 font-medium">· active</span>}
       </div>
+
+      {/* Together time badge */}
+      {isTogether && (
+        <div className="mt-1.5 flex items-center gap-1 bg-green-100/90 rounded-lg px-2 py-0.5 w-fit">
+          <span className="text-[9px]">🐧💚🦕</span>
+          <span className="text-[9px] font-bold text-green-700">Together · {fmtMs(overlapMs)}</span>
+        </div>
+      )}
 
       {entry.note && (
         <p className="text-[10px] text-gray-500 italic mt-1.5 bg-white/50 rounded-lg px-2 py-1 line-clamp-2 break-words">
@@ -120,6 +140,7 @@ function UserColumn({
   accentColor,
   entries,
   now,
+  overlapMap,
   onEdit,
   onDelete,
 }: {
@@ -129,26 +150,13 @@ function UserColumn({
   accentColor: string
   entries: StatusEntry[]
   now: Date
+  overlapMap: Map<string, number>
   onEdit?: (entry: StatusEntry) => void
   onDelete?: (entryId: string) => void
 }) {
   const sorted = [...entries].sort(
     (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
   )
-
-  const activeEntry = sorted.find(e => !e.endTime)
-  const [activeMinutes, setActiveMinutes] = useState<number>(0)
-
-  useEffect(() => {
-    if (!activeEntry) return
-    const update = () => {
-      const mins = Math.floor((Date.now() - new Date(activeEntry.startTime).getTime()) / 60000)
-      setActiveMinutes(Math.max(0, mins))
-    }
-    update()
-    const interval = setInterval(update, 30000)
-    return () => clearInterval(interval)
-  }, [activeEntry])
 
   return (
     <div className="flex flex-col gap-3 min-w-0">
@@ -157,12 +165,7 @@ function UserColumn({
         style={{ backgroundColor: headerBg }}
       >
         <span className="text-xl flex-shrink-0">{mascot}</span>
-        <span className="font-bold text-sm truncate" style={{ color: accentColor }}>{name}</span>
-        {activeEntry && (
-          <span className="ml-auto text-xs font-medium text-green-600 flex-shrink-0 whitespace-nowrap">
-            {activeMinutes}m ago
-          </span>
-        )}
+        <span className="font-bold text-sm" style={{ color: accentColor }}>{name}</span>
       </div>
 
       {sorted.length === 0 ? (
@@ -174,7 +177,14 @@ function UserColumn({
       ) : (
         <div className="space-y-2.5">
           {sorted.map(entry => (
-            <EntryCard key={entry.id} entry={entry} now={now} onEdit={onEdit} onDelete={onDelete} />
+            <EntryCard
+              key={entry.id}
+              entry={entry}
+              now={now}
+              overlapMs={overlapMap.get(entry.id)}
+              onEdit={onEdit}
+              onDelete={onDelete}
+            />
           ))}
         </div>
       )}
@@ -216,14 +226,6 @@ function findSharedOverlaps(jEntries: StatusEntry[], aEntries: StatusEntry[], no
   return overlaps
 }
 
-function fmtMs(ms: number): string {
-  const mins = Math.floor(ms / 60000)
-  const h = Math.floor(mins / 60)
-  const m = mins % 60
-  if (h > 0) return `${h}h ${m}m`
-  return `${m}m`
-}
-
 export default function SplitTimeline({ entries, date, onEdit, onDelete }: Props) {
   const [now, setNow] = useState(new Date())
 
@@ -237,21 +239,31 @@ export default function SplitTimeline({ entries, date, onEdit, onDelete }: Props
   const anthonyEntries = entries.filter(e => e.userId === 'anthony')
   const sharedOverlaps = findSharedOverlaps(jeanetteEntries, anthonyEntries, now)
 
+  // Build a map of entryId → total overlap ms for together-time glowing
+  const overlapMap = new Map<string, number>()
+  for (const overlap of sharedOverlaps) {
+    const ms = overlap.overlapEnd.getTime() - overlap.overlapStart.getTime()
+    overlapMap.set(overlap.jEntry.id, (overlapMap.get(overlap.jEntry.id) ?? 0) + ms)
+    overlapMap.set(overlap.aEntry.id, (overlapMap.get(overlap.aEntry.id) ?? 0) + ms)
+  }
+
   return (
-    <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-lg border border-white/60 p-6 h-full">
-      <div className="mb-5">
+    <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-lg border border-white/60 overflow-hidden flex flex-col max-h-[80vh]">
+      {/* Sticky header */}
+      <div className="px-6 pt-5 pb-4 border-b border-gray-100/80 flex-shrink-0">
         <h2 className="text-lg font-bold text-violet-700">Our Timeline 🌸</h2>
         <p className="text-sm text-gray-400 font-medium">{dateLabel}</p>
       </div>
 
-      {entries.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <div className="text-4xl mb-3">🌸</div>
-          <p className="text-gray-400 font-medium">No activities yet today</p>
-          <p className="text-gray-300 text-sm mt-1">Set a status to get started!</p>
-        </div>
-      ) : (
-        <div className="space-y-5">
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto px-6 py-5">
+        {entries.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="text-4xl mb-3">🌸</div>
+            <p className="text-gray-400 font-medium">No activities yet today</p>
+            <p className="text-gray-300 text-sm mt-1">Set a status to get started!</p>
+          </div>
+        ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <UserColumn
               mascot="🐧"
@@ -260,6 +272,7 @@ export default function SplitTimeline({ entries, date, onEdit, onDelete }: Props
               accentColor="#8b5cf6"
               entries={jeanetteEntries}
               now={now}
+              overlapMap={overlapMap}
               onEdit={onEdit}
               onDelete={onDelete}
             />
@@ -270,46 +283,13 @@ export default function SplitTimeline({ entries, date, onEdit, onDelete }: Props
               accentColor="#d97706"
               entries={anthonyEntries}
               now={now}
+              overlapMap={overlapMap}
               onEdit={onEdit}
               onDelete={onDelete}
             />
           </div>
-
-          {sharedOverlaps.length > 0 && (
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-sm font-bold text-green-700">Together Time 💚</span>
-                <div className="flex-1 h-px bg-green-200" />
-              </div>
-              <div className="space-y-2">
-                {sharedOverlaps.map((overlap, i) => {
-                  const durationMs = overlap.overlapEnd.getTime() - overlap.overlapStart.getTime()
-                  return (
-                    <div
-                      key={i}
-                      className="rounded-2xl px-4 py-3 border border-green-200 bg-green-50 shadow-[0_0_16px_rgba(134,239,172,0.4)]"
-                    >
-                      <div className="flex items-center justify-between gap-2 min-w-0">
-                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                          <span className="flex-shrink-0">🐧</span>
-                          <span className="text-xs font-semibold text-gray-600 truncate">{overlap.jEntry.status}</span>
-                          <span className="text-gray-300 flex-shrink-0">&</span>
-                          <span className="flex-shrink-0">🦕</span>
-                          <span className="text-xs font-semibold text-gray-600 truncate">{overlap.aEntry.status}</span>
-                        </div>
-                        <span className="text-xs font-bold text-green-700 flex-shrink-0">{fmtMs(durationMs)}</span>
-                      </div>
-                      <p className="text-xs text-green-600 mt-1">
-                        {formatTime(overlap.overlapStart)} – {formatTime(overlap.overlapEnd)}
-                      </p>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }

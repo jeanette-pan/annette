@@ -48,6 +48,11 @@ export function isSleepStatus(status: string): boolean {
   return ['sleep', 'sleeping', 'nap', 'napping', 'bedtime', 'bed', 'rest', 'resting'].some(k => lower.includes(k))
 }
 
+export function isEatingStatus(status: string): boolean {
+  const lower = status.toLowerCase()
+  return ['eat', 'eating', 'food', 'lunch', 'dinner', 'breakfast', 'meal', 'snack', 'brunch', 'cook', 'cooking', 'coffee', 'drink'].some(k => lower.includes(k))
+}
+
 export function getWeekStart(date: Date): string {
   // Returns Monday of the week containing date, as YYYY-MM-DD
   const d = new Date(date)
