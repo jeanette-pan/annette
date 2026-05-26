@@ -38,35 +38,15 @@ export default function CalendarView() {
   const fetchMonthData = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/status?date=${monthStr}-01`)
-      // Actually, let's fetch all entries for the whole month by fetching day by day
-      // Better: fetch for each day. But let's use the date prefix approach via the API.
-      // The API supports ?date=YYYY-MM-DD, so we need to fetch per day.
-      // Let's fetch the whole month by iterating all days.
-      const monthStart = startOfMonth(currentMonth)
-      const monthEnd = endOfMonth(currentMonth)
-      const days = eachDayOfInterval({ start: monthStart, end: monthEnd })
-
-      const allEntries: StatusEntry[] = []
-      // Batch: fetch all days in parallel
-      const results = await Promise.all(
-        days.map((day) =>
-          fetch(`/api/status?date=${format(day, 'yyyy-MM-dd')}`)
-            .then((r) => r.json())
-            .then((data) => data.entries as StatusEntry[])
-            .catch(() => [] as StatusEntry[])
-        )
-      )
-      for (const dayResult of results) {
-        allEntries.push(...dayResult)
-      }
-      setMonthEntries(allEntries)
+      const res = await fetch(`/api/status?month=${monthStr}`)
+      const data = await res.json()
+      setMonthEntries(data.entries ?? [])
     } catch (err) {
       console.error('Failed to fetch month data', err)
     } finally {
       setLoading(false)
     }
-  }, [currentMonth, monthStr])
+  }, [monthStr])
 
   useEffect(() => {
     fetchMonthData()
