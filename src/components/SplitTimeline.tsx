@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Pencil, Trash2 } from 'lucide-react'
+import { Pencil, Trash2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { formatTime, formatDate, formatDurationFromDates, isSleepStatus } from '@/lib/utils'
 import { parseISO } from 'date-fns'
 
@@ -24,6 +24,8 @@ type Props = {
   date: string
   onEdit?: (entry: StatusEntry) => void
   onDelete?: (entryId: string) => void
+  onPrevDay?: () => void
+  onNextDay?: () => void
 }
 
 function fmtMs(ms: number): string {
@@ -70,13 +72,13 @@ function EntryCard({
         <span className="absolute top-2 right-2 w-2 h-2 bg-green-400 rounded-full border-2 border-white animate-pulse z-10" />
       )}
 
-      {/* Edit/delete buttons on hover */}
+      {/* Edit/delete buttons — always visible for touch support */}
       {(onEdit || onDelete) && (
-        <div className="absolute top-1.5 right-1.5 hidden group-hover:flex gap-1 bg-white/95 rounded-xl px-1.5 py-1 shadow-md z-10">
+        <div className="absolute top-1.5 right-1.5 flex gap-1 bg-white/95 rounded-xl px-1.5 py-1 shadow-md z-10">
           {onEdit && (
             <button
               onClick={(e) => { e.stopPropagation(); onEdit(entry) }}
-              className="p-1 rounded-lg hover:bg-violet-100 text-violet-500 transition-colors"
+              className="p-1 rounded-lg hover:bg-violet-100 text-violet-400 transition-colors"
               title="Edit"
             >
               <Pencil size={11} />
@@ -226,7 +228,7 @@ function findSharedOverlaps(jEntries: StatusEntry[], aEntries: StatusEntry[], no
   return overlaps
 }
 
-export default function SplitTimeline({ entries, date, onEdit, onDelete }: Props) {
+export default function SplitTimeline({ entries, date, onEdit, onDelete, onPrevDay, onNextDay }: Props) {
   const [now, setNow] = useState(new Date())
 
   useEffect(() => {
@@ -251,7 +253,28 @@ export default function SplitTimeline({ entries, date, onEdit, onDelete }: Props
     <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-lg border border-white/60 overflow-hidden flex flex-col max-h-[80vh]">
       {/* Sticky header */}
       <div className="px-6 pt-5 pb-4 border-b border-gray-100/80 flex-shrink-0">
-        <h2 className="text-lg font-bold text-violet-700">Our Timeline 🌸</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold text-violet-700">Our Timeline 🌸</h2>
+          {(onPrevDay || onNextDay) && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={onPrevDay}
+                className="p-1.5 rounded-full hover:bg-violet-100 text-violet-500 transition-colors"
+                title="Previous day"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <button
+                onClick={onNextDay}
+                disabled={!onNextDay}
+                className="p-1.5 rounded-full hover:bg-violet-100 text-violet-500 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                title="Next day"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          )}
+        </div>
         <p className="text-sm text-gray-400 font-medium">{dateLabel}</p>
       </div>
 

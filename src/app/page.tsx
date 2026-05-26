@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Check } from 'lucide-react'
-import { format } from 'date-fns'
+import { format, subDays, addDays, parseISO } from 'date-fns'
 import AnimatedBackground from '@/components/AnimatedBackground'
 import Navbar from '@/components/Navbar'
 import UserSelector, { useCurrentUser } from '@/components/UserSelector'
@@ -43,6 +43,7 @@ export default function HomePage() {
   const [editEntry, setEditEntry] = useState<StatusEntry | null>(null)
   const [editLoading, setEditLoading] = useState(false)
   const today = getTodayString()
+  const [timelineDate, setTimelineDate] = useState(today)
 
   const userConfig = currentUser ? getUserConfig(currentUser.userId) : null
 
@@ -58,13 +59,13 @@ export default function HomePage() {
 
   const fetchTodayEntries = useCallback(async () => {
     try {
-      const res = await fetch(`/api/status?date=${today}`)
+      const res = await fetch(`/api/status?date=${timelineDate}`)
       const data = await res.json()
       setTodayEntries(data.entries)
     } catch (err) {
       console.error('Failed to fetch today entries', err)
     }
-  }, [today])
+  }, [timelineDate])
 
   useEffect(() => {
     fetchCurrentStatus()
@@ -75,6 +76,12 @@ export default function HomePage() {
     }, 5000)
     return () => clearInterval(interval)
   }, [fetchCurrentStatus, fetchTodayEntries])
+
+  const goToPrevDay = () => setTimelineDate(format(subDays(parseISO(timelineDate), 1), 'yyyy-MM-dd'))
+  const goToNextDay = () => {
+    const next = format(addDays(parseISO(timelineDate), 1), 'yyyy-MM-dd')
+    if (next <= today) setTimelineDate(next)
+  }
 
   const handleStatusSubmit = async (data: StatusFormData) => {
     if (!currentUser) return
@@ -264,9 +271,11 @@ export default function HomePage() {
           <div className="lg:col-span-1 lg:sticky lg:top-20 lg:self-start">
             <DailyTimeline
               entries={todayEntries}
-              date={today}
+              date={timelineDate}
               onEdit={(entry) => setEditEntry(entry as StatusEntry)}
               onDelete={handleDelete}
+              onPrevDay={goToPrevDay}
+              onNextDay={timelineDate < today ? goToNextDay : undefined}
             />
           </div>
         </div>

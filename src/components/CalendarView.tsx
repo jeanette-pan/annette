@@ -174,6 +174,17 @@ export default function CalendarView() {
     }
   }
 
+  const handleDeleteEntry = async (entryId: string) => {
+    setDayEntries(prev => prev.filter(e => e.id !== entryId))
+    try {
+      await fetch(`/api/status/${entryId}?reopenPrevious=true`, { method: 'DELETE' })
+      await fetchMonthData()
+    } catch (err) {
+      console.error('Failed to delete entry', err)
+      await fetchMonthData()
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-lg border border-white/60 p-6">
@@ -448,6 +459,7 @@ export default function CalendarView() {
             <SplitTimeline
               entries={dayEntries}
               date={format(selectedDate, 'yyyy-MM-dd')}
+              onDelete={handleDeleteEntry}
             />
           </motion.div>
         )}
