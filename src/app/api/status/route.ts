@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { userId, userName, status, emoji, note, color, startTime, endTime, isShared } = body
+    const { userId, userName, status, emoji, note, color, startTime, endTime, isShared, localDate } = body
 
     if (!userId || !userName || !status) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -42,8 +42,8 @@ export async function POST(request: NextRequest) {
 
     const parsedStart = startTime ? new Date(startTime) : new Date()
     const parsedEnd = endTime ? new Date(endTime) : null
-    // Use the local date from the startTime string (first 10 chars = YYYY-MM-DD)
-    const dateStr = startTime ? startTime.substring(0, 10) : getTodayString()
+    // localDate is the YYYY-MM-DD in the user's local timezone, sent from the browser
+    const dateStr = localDate || (startTime ? startTime.substring(0, 10) : getTodayString())
 
     // Close the previous active entry for this user, ending it at the new start time
     await prisma.statusEntry.updateMany({

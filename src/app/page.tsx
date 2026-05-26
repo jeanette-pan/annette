@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Check } from 'lucide-react'
 import { format } from 'date-fns'
@@ -42,8 +42,6 @@ export default function HomePage() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [editEntry, setEditEntry] = useState<StatusEntry | null>(null)
   const [editLoading, setEditLoading] = useState(false)
-  const [undoEntry, setUndoEntry] = useState<{ id: string; label: string } | null>(null)
-  const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const today = getTodayString()
 
   const userConfig = currentUser ? getUserConfig(currentUser.userId) : null
@@ -92,9 +90,12 @@ export default function HomePage() {
           emoji: data.emoji,
           note: data.note || null,
           color: data.color,
-          startTime: data.startTime,
-          endTime: data.endTime || null,
+          // Convert local datetime-local string to UTC ISO for correct server storage
+          startTime: new Date(data.startTime).toISOString(),
+          endTime: data.endTime ? new Date(data.endTime).toISOString() : null,
           isShared: data.isShared,
+          // Pass local date so daily grouping uses the user's timezone
+          localDate: data.startTime.substring(0, 10),
         }),
       })
       setShowSuccess(true)
@@ -123,6 +124,7 @@ export default function HomePage() {
           startTime: new Date(data.startTime).toISOString(),
           endTime: data.endTime ? new Date(data.endTime).toISOString() : null,
           isShared: data.isShared,
+          localDate: data.startTime.substring(0, 10),
         }),
       })
       setEditEntry(null)
@@ -135,31 +137,16 @@ export default function HomePage() {
     }
   }
 
-  const handleDelete = (entryId: string) => {
-    const entry = todayEntries.find(e => e.id === entryId)
-    if (!entry) return
-
+  const handleDelete = async (entryId: string) => {
     setTodayEntries(prev => prev.filter(e => e.id !== entryId))
-
-    if (undoTimer.current) clearTimeout(undoTimer.current)
-    setUndoEntry({ id: entryId, label: `${entry.emoji} ${entry.status}` })
-    undoTimer.current = setTimeout(async () => {
-      setUndoEntry(null)
-      try {
-        await fetch(`/api/status/${entryId}?reopenPrevious=true`, { method: 'DELETE' })
-        await fetchCurrentStatus()
-        await fetchTodayEntries()
-      } catch (err) {
-        console.error('Failed to delete status', err)
-      }
-    }, 8000)
-  }
-
-  const handleUndo = () => {
-    if (undoTimer.current) clearTimeout(undoTimer.current)
-    undoTimer.current = null
-    setUndoEntry(null)
-    fetchTodayEntries()
+    try {
+      await fetch(`/api/status/${entryId}?reopenPrevious=true`, { method: 'DELETE' })
+      await fetchCurrentStatus()
+      await fetchTodayEntries()
+    } catch (err) {
+      console.error('Failed to delete status', err)
+      await fetchTodayEntries()
+    }
   }
 
   const editInitialData = editEntry ? {
@@ -192,26 +179,6 @@ export default function HomePage() {
           >
             <Check size={16} />
             Status updated! 💜
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Undo toast */}
-      <AnimatePresence>
-        {undoEntry && (
-          <motion.div
-            initial={{ opacity: 0, y: 40, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 40, scale: 0.9 }}
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-gray-800 text-white font-semibold px-5 py-3 rounded-full shadow-xl flex items-center gap-3"
-          >
-            <span className="text-sm">Deleted {undoEntry.label}</span>
-            <button
-              onClick={handleUndo}
-              className="text-yellow-300 font-bold text-sm hover:text-yellow-100 transition-colors"
-            >
-              Undo
-            </button>
           </motion.div>
         )}
       </AnimatePresence>

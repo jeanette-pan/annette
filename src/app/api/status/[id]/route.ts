@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const body = await request.json()
-    const { note, endTime, status, emoji, color, startTime, isShared } = body
+    const { note, endTime, status, emoji, color, startTime, isShared, localDate } = body
     const updateData: Record<string, unknown> = {}
     if (note !== undefined) updateData.note = note
     if (endTime !== undefined) updateData.endTime = endTime ? new Date(endTime) : null
@@ -15,6 +15,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     if (color !== undefined) updateData.color = color
     if (startTime !== undefined) updateData.startTime = new Date(startTime)
     if (isShared !== undefined) updateData.isShared = isShared
+    if (localDate !== undefined) updateData.date = localDate
     const entry = await prisma.statusEntry.update({ where: { id: params.id }, data: updateData })
     return NextResponse.json({ entry })
   } catch (error) {

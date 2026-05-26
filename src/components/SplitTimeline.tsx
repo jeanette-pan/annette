@@ -37,48 +37,26 @@ function EntryCard({
   onEdit?: (entry: StatusEntry) => void
   onDelete?: (entryId: string) => void
 }) {
-  const [confirmDelete, setConfirmDelete] = useState(false)
   const isActive = !entry.endTime
   const start = new Date(entry.startTime)
   const end = entry.endTime ? new Date(entry.endTime) : null
   const durationMs = (end ?? now).getTime() - start.getTime()
   const durationMinutes = Math.floor(Math.max(0, durationMs) / 60000)
-  const minHeight = Math.max(56, Math.min(160, durationMinutes * 0.6))
+  const minHeight = Math.max(52, Math.min(140, durationMinutes * 0.5))
   const isSleep = isSleepStatus(entry.status)
 
   return (
     <div
-      className="group relative rounded-2xl p-3 border border-white/70 shadow-sm transition-all duration-300"
+      className="group relative rounded-2xl p-2.5 border border-white/70 shadow-sm overflow-hidden"
       style={{ backgroundColor: entry.color, minHeight: `${minHeight}px` }}
     >
-      {/* Delete confirmation overlay */}
-      {confirmDelete && (
-        <div className="absolute inset-0 bg-white/92 rounded-2xl flex flex-col items-center justify-center gap-2 z-20 p-3">
-          <p className="text-xs font-bold text-gray-600 text-center">Delete this entry?</p>
-          <div className="flex gap-2">
-            <button
-              onClick={() => { onDelete?.(entry.id); setConfirmDelete(false) }}
-              className="px-3 py-1 bg-red-400 text-white text-xs font-bold rounded-full hover:bg-red-500 transition-colors"
-            >
-              Delete
-            </button>
-            <button
-              onClick={() => setConfirmDelete(false)}
-              className="px-3 py-1 bg-gray-200 text-gray-600 text-xs font-bold rounded-full hover:bg-gray-300 transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Active pulsing dot */}
-      {isActive && !confirmDelete && (
-        <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-green-400 rounded-full border-2 border-white animate-pulse z-10" />
+      {isActive && (
+        <span className="absolute top-2 right-2 w-2 h-2 bg-green-400 rounded-full border-2 border-white animate-pulse z-10" />
       )}
 
       {/* Edit/delete buttons on hover */}
-      {(onEdit || onDelete) && !confirmDelete && (
+      {(onEdit || onDelete) && (
         <div className="absolute top-1.5 right-1.5 hidden group-hover:flex gap-1 bg-white/95 rounded-xl px-1.5 py-1 shadow-md z-10">
           {onEdit && (
             <button
@@ -86,50 +64,48 @@ function EntryCard({
               className="p-1 rounded-lg hover:bg-violet-100 text-violet-500 transition-colors"
               title="Edit"
             >
-              <Pencil size={12} />
+              <Pencil size={11} />
             </button>
           )}
           {onDelete && (
             <button
-              onClick={(e) => { e.stopPropagation(); setConfirmDelete(true) }}
+              onClick={(e) => { e.stopPropagation(); onDelete(entry.id) }}
               className="p-1 rounded-lg hover:bg-red-100 text-red-400 transition-colors"
               title="Delete"
             >
-              <Trash2 size={12} />
+              <Trash2 size={11} />
             </button>
           )}
         </div>
       )}
 
-      <div className="flex items-start gap-1.5 pr-8 min-w-0">
-        <span className="text-base flex-shrink-0">{entry.emoji}</span>
-        <span className="font-bold text-gray-700 text-sm leading-tight break-words min-w-0 flex-1">{entry.status}</span>
+      <div className="flex items-start gap-1 pr-6 min-w-0">
+        <span className="text-sm flex-shrink-0 leading-tight">{entry.emoji}</span>
+        <span className="font-bold text-gray-700 text-[11px] leading-snug break-words min-w-0 flex-1">{entry.status}</span>
         {isSleep && (
-          <span className="flex-shrink-0 text-xs bg-indigo-100 text-indigo-600 rounded-full px-1.5 py-0.5 font-semibold">😴</span>
+          <span className="flex-shrink-0 text-[9px] bg-indigo-100 text-indigo-600 rounded-full px-1 py-0.5 font-semibold leading-tight">😴</span>
         )}
         {entry.isShared && !isSleep && (
-          <span className="flex-shrink-0 text-xs leading-none">💚</span>
+          <span className="flex-shrink-0 text-[10px] leading-none">💚</span>
         )}
       </div>
 
-      <div className="text-xs text-gray-500 font-medium mt-1.5">
-        {formatTime(entry.startTime)}
+      <div className="flex flex-wrap items-center gap-x-0.5 text-[10px] text-gray-500 font-medium mt-1 leading-tight">
+        <span className="whitespace-nowrap">{formatTime(entry.startTime)}</span>
         {isActive ? (
-          <span className="text-green-600 font-bold"> → Now</span>
+          <span className="text-green-600 font-bold whitespace-nowrap"> → Now</span>
         ) : entry.endTime ? (
-          <> – {formatTime(entry.endTime)}</>
+          <span className="whitespace-nowrap"> – {formatTime(entry.endTime)}</span>
         ) : null}
       </div>
 
-      <div className="text-xs text-gray-400 mt-0.5">
-        {formatDurationFromDates(entry.startTime, entry.endTime ?? null)}
-        {isActive && (
-          <span className="ml-1 text-green-500 font-medium">· active</span>
-        )}
+      <div className="flex flex-wrap items-center gap-x-1 text-[10px] text-gray-400 mt-0.5 leading-tight">
+        <span>{formatDurationFromDates(entry.startTime, entry.endTime ?? null)}</span>
+        {isActive && <span className="text-green-500 font-medium">· active</span>}
       </div>
 
       {entry.note && (
-        <p className="text-xs text-gray-500 italic mt-1.5 bg-white/50 rounded-lg px-2 py-1 line-clamp-2">
+        <p className="text-[10px] text-gray-500 italic mt-1.5 bg-white/50 rounded-lg px-2 py-1 line-clamp-2 break-words">
           {entry.note}
         </p>
       )}

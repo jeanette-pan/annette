@@ -27,7 +27,7 @@ export const USERS = {
     textClass: 'text-yellow-700',
     themeHex: '#fef9c3',
     accentHex: '#d97706',
-    buttonClass: 'bg-yellow-400 hover:bg-yellow-500',
+    buttonClass: 'bg-amber-500 hover:bg-amber-600',
     messages: [
       'Thinking of Anthony 💛',
       'Hope the dino is doing well 🦕',
