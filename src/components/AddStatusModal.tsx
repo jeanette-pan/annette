@@ -153,37 +153,32 @@ export default function AddStatusModal({
 
             <div className="px-6 py-5 space-y-5">
               {/* Templates */}
-              {templates.length > 0 && (
+              {userId && (
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">Quick Templates</p>
                     <Link href="/templates" className="text-xs text-violet-500 font-semibold hover:text-violet-700" onClick={onClose}>
-                      Manage 📋
+                      {templates.length > 0 ? 'Manage 📋' : '+ Create 📋'}
                     </Link>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {templates.slice(0, 8).map((tpl) => (
-                      <button
-                        key={tpl.id}
-                        onClick={() => applyTemplate(tpl)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-gray-700 border border-white/60 shadow-sm hover:shadow-md hover:scale-105 transition-all duration-150"
-                        style={{ backgroundColor: tpl.color }}
-                      >
-                        <span>{tpl.emoji}</span>
-                        <span className="max-w-[80px] truncate">{tpl.name}</span>
-                      </button>
-                    ))}
-                  </div>
+                  {templates.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {templates.slice(0, 8).map((tpl) => (
+                        <button
+                          key={tpl.id}
+                          onClick={() => applyTemplate(tpl)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-gray-700 border border-white/60 shadow-sm hover:shadow-md hover:scale-105 transition-all duration-150"
+                          style={{ backgroundColor: tpl.color }}
+                        >
+                          <span>{tpl.emoji}</span>
+                          <span className="max-w-[80px] truncate">{tpl.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-300 text-center py-1">No templates yet — tap &ldquo;+ Create&rdquo; to save your go-to statuses.</p>
+                  )}
                 </div>
-              )}
-              {templates.length === 0 && userId && (
-                <Link
-                  href="/templates"
-                  className="block text-xs text-violet-400 hover:text-violet-600 text-center transition-colors"
-                  onClick={onClose}
-                >
-                  + Create templates for quick status updates 📋
-                </Link>
               )}
 
               {/* Emoji + Status */}

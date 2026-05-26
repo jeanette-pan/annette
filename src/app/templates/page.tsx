@@ -243,7 +243,12 @@ export default function TemplatesPage() {
                 whileTap={{ scale: 0.98 }}
                 onClick={handleCreate}
                 disabled={!form.name.trim() || !form.status.trim() || saving}
-                className={`w-full rounded-full px-6 py-3.5 font-bold text-white transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-40 disabled:cursor-not-allowed ${userConfig?.buttonClass ?? 'bg-violet-400 hover:bg-violet-500'}`}
+                style={currentUser?.userId === 'anthony' ? { backgroundColor: '#FEE12B' } : {}}
+                className={`w-full rounded-full px-6 py-3.5 font-bold transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-40 disabled:cursor-not-allowed ${
+                  currentUser?.userId === 'anthony'
+                    ? 'text-gray-900 hover:brightness-95'
+                    : 'text-white bg-violet-400 hover:bg-violet-500'
+                }`}
               >
                 {saving ? 'Saving...' : 'Save Template 💾'}
               </motion.button>
