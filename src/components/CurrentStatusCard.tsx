@@ -109,11 +109,7 @@ export default function CurrentStatusCard({ userId, userName, entry, isMe }: Pro
           </p>
         )}
 
-        <p className="text-xs text-gray-500 mt-2">
-          {entry
-            ? `Thinking of you ${userConfig.mascot}`
-            : userConfig.messages[0]}
-        </p>
+
       </div>
     </motion.div>
   )
