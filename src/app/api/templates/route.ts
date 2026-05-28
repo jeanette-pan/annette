@@ -3,8 +3,6 @@ import { prisma } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-const PARTNER: Record<string, string> = { jeanette: 'anthony', anthony: 'jeanette' }
-
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -14,14 +12,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'userId is required' }, { status: 400 })
     }
 
-    const partnerId = PARTNER[userId]
     const templates = await prisma.statusTemplate.findMany({
-      where: {
-        OR: [
-          { userId },
-          ...(partnerId ? [{ userId: partnerId, isShared: true }] : []),
-        ],
-      },
+      where: { userId },
       orderBy: { createdAt: 'asc' },
     })
 
@@ -49,7 +41,6 @@ export async function POST(request: NextRequest) {
         emoji: emoji || '✨',
         color: color || '#e9d5ff',
         note: note || null,
-        isShared: body.isShared ?? false,
       },
     })
 

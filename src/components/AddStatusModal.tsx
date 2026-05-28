@@ -16,7 +16,6 @@ type StatusTemplate = {
   emoji: string
   color: string
   note?: string | null
-  isShared?: boolean
 }
 
 type Props = {
@@ -96,14 +95,6 @@ export default function AddStatusModal({
     setNote(tpl.note ?? '')
   }
 
-  const handleDeleteTemplate = useCallback(async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation()
-    try {
-      await fetch(`/api/templates/${id}`, { method: 'DELETE' })
-      setTemplates(prev => prev.filter(t => t.id !== id))
-    } catch { /* silent */ }
-  }, [])
-
   const handleSubmit = () => {
     if (!status.trim()) return
     onSubmit({
@@ -162,40 +153,37 @@ export default function AddStatusModal({
 
             <div className="px-6 py-5 space-y-5">
               {/* Templates */}
-              {userId && (
+              {templates.length > 0 && (
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">Quick Templates</p>
                     <Link href="/templates" className="text-xs text-violet-500 font-semibold hover:text-violet-700" onClick={onClose}>
-                      {templates.length > 0 ? 'Manage 📋' : '+ Create 📋'}
+                      Manage 📋
                     </Link>
                   </div>
-                  {templates.length > 0 ? (
-                    <div className="flex flex-wrap gap-2 max-h-28 overflow-y-auto pr-1">
-                      {templates.map((tpl) => (
-                        <div
-                          key={tpl.id}
-                          className="group/tpl relative flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 rounded-full text-xs font-semibold text-gray-700 border border-white/60 shadow-sm hover:shadow-md transition-all duration-150 cursor-pointer"
-                          style={{ backgroundColor: tpl.color }}
-                          onClick={() => applyTemplate(tpl)}
-                        >
-                          <span>{tpl.emoji}</span>
-                          <span className="max-w-[80px] truncate">{tpl.name}</span>
-                          {tpl.isShared && <span className="text-[9px] opacity-60">💚</span>}
-                          <button
-                            onClick={(e) => handleDeleteTemplate(e, tpl.id)}
-                            className="opacity-0 group-hover/tpl:opacity-100 ml-0.5 w-4 h-4 flex items-center justify-center rounded-full bg-black/10 hover:bg-red-200 text-gray-500 hover:text-red-600 transition-all flex-shrink-0"
-                            title="Delete template"
-                          >
-                            <X size={9} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-gray-300 text-center py-1">No templates yet — tap &ldquo;+ Create&rdquo; to save your go-to statuses.</p>
-                  )}
+                  <div className="flex flex-wrap gap-2">
+                    {templates.slice(0, 8).map((tpl) => (
+                      <button
+                        key={tpl.id}
+                        onClick={() => applyTemplate(tpl)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-gray-700 border border-white/60 shadow-sm hover:shadow-md hover:scale-105 transition-all duration-150"
+                        style={{ backgroundColor: tpl.color }}
+                      >
+                        <span>{tpl.emoji}</span>
+                        <span className="max-w-[80px] truncate">{tpl.name}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
+              )}
+              {templates.length === 0 && userId && (
+                <Link
+                  href="/templates"
+                  className="block text-xs text-violet-400 hover:text-violet-600 text-center transition-colors"
+                  onClick={onClose}
+                >
+                  + Create templates for quick status updates 📋
+                </Link>
               )}
 
               {/* Emoji + Status */}
@@ -309,12 +297,7 @@ export default function AddStatusModal({
                 whileTap={{ scale: 0.98 }}
                 onClick={handleSubmit}
                 disabled={!status.trim() || loading}
-                style={userId === 'anthony' ? { backgroundColor: '#FEE12B' } : {}}
-                className={`w-full rounded-full px-6 py-3.5 font-bold transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-40 disabled:cursor-not-allowed ${
-                  userId === 'anthony'
-                    ? 'text-gray-900 hover:brightness-95'
-                    : `text-white ${userButtonClass}`
-                }`}
+                className={`w-full rounded-full px-6 py-3.5 font-bold text-white transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-40 disabled:cursor-not-allowed ${userButtonClass}`}
               >
                 {loading ? 'Saving... 💜' : mode === 'edit' ? 'Save Changes ✨' : 'Set Status ✨'}
               </motion.button>

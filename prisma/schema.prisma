@@ -31,7 +31,6 @@ model StatusTemplate {
   emoji     String   @default("✨")
   color     String   @default("#e9d5ff")
   note      String?
-  isShared  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
