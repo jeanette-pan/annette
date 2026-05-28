@@ -45,11 +45,16 @@ export async function POST(request: NextRequest) {
     // localDate is the YYYY-MM-DD in the user's local timezone, sent from the browser
     const dateStr = localDate || (startTime ? startTime.substring(0, 10) : getTodayString())
 
-    // Close the previous active entry for this user, ending it at the new start time
-    await prisma.statusEntry.updateMany({
-      where: { userId, endTime: null },
-      data: { endTime: parsedStart },
-    })
+    // Close the previous open entry only when this new entry has no explicit end time
+    // (i.e. it's the new current status). Retroactive entries with an endTime already
+    // set are purely historical and should not disturb whatever is currently active.
+    // Also only close entries whose startTime <= parsedStart to avoid negative durations.
+    if (!parsedEnd) {
+      await prisma.statusEntry.updateMany({
+        where: { userId, endTime: null, startTime: { lte: parsedStart } },
+        data: { endTime: parsedStart },
+      })
+    }
 
     const entry = await prisma.statusEntry.create({
       data: {

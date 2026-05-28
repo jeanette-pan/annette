@@ -15,6 +15,7 @@ type StatusTemplate = {
   emoji: string
   color: string
   note?: string | null
+  isShared: boolean
   createdAt: string
 }
 
@@ -24,6 +25,7 @@ type FormState = {
   emoji: string
   color: string
   note: string
+  isShared: boolean
 }
 
 const DEFAULT_FORM: FormState = {
@@ -32,6 +34,7 @@ const DEFAULT_FORM: FormState = {
   emoji: '✨',
   color: PASTEL_COLORS[0].hex,
   note: '',
+  isShared: false,
 }
 
 export default function TemplatesPage() {
@@ -78,6 +81,7 @@ export default function TemplatesPage() {
           emoji: form.emoji.trim() || '✨',
           color: form.color,
           note: form.note.trim() || undefined,
+          isShared: form.isShared,
         }),
       })
       if (res.ok) {
@@ -99,6 +103,7 @@ export default function TemplatesPage() {
       emoji: tpl.emoji,
       color: tpl.color,
       note: tpl.note ?? '',
+      isShared: tpl.isShared,
     })
   }
 
@@ -115,6 +120,7 @@ export default function TemplatesPage() {
           emoji: editForm.emoji.trim() || '✨',
           color: editForm.color,
           note: editForm.note.trim() || null,
+          isShared: editForm.isShared,
         }),
       })
       if (res.ok) {
@@ -129,6 +135,7 @@ export default function TemplatesPage() {
   }
 
   const handleDelete = async (id: string) => {
+    if (!confirm('Delete this template?')) return
     setDeleting(id)
     try {
       await fetch(`/api/templates/${id}`, { method: 'DELETE' })
@@ -238,12 +245,36 @@ export default function TemplatesPage() {
                 </div>
               </div>
 
+              {/* Shared toggle */}
+              <button
+                type="button"
+                onClick={() => setForm(f => ({ ...f, isShared: !f.isShared }))}
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl border-2 transition-all ${
+                  form.isShared ? 'bg-green-50 border-green-300' : 'bg-gray-50 border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span>{form.isShared ? '💚' : '🤍'}</span>
+                  <span className={`font-semibold text-sm ${form.isShared ? 'text-green-700' : 'text-gray-500'}`}>
+                    {form.isShared ? 'Shared with partner 🐧🦕' : 'Only visible to me'}
+                  </span>
+                </div>
+                <div className={`w-10 h-5 rounded-full transition-all flex items-center ${form.isShared ? 'bg-green-400' : 'bg-gray-300'}`}>
+                  <div className={`w-4 h-4 bg-white rounded-full shadow transition-all ${form.isShared ? 'ml-5' : 'ml-0.5'}`} />
+                </div>
+              </button>
+
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={handleCreate}
                 disabled={!form.name.trim() || !form.status.trim() || saving}
-                className={`w-full rounded-full px-6 py-3.5 font-bold text-white transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-40 disabled:cursor-not-allowed ${userConfig?.buttonClass ?? 'bg-violet-400 hover:bg-violet-500'}`}
+                style={currentUser?.userId === 'anthony' ? { backgroundColor: '#FEE12B' } : {}}
+                className={`w-full rounded-full px-6 py-3.5 font-bold transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-40 disabled:cursor-not-allowed ${
+                  currentUser?.userId === 'anthony'
+                    ? 'text-gray-900 hover:brightness-95'
+                    : 'text-white bg-violet-400 hover:bg-violet-500'
+                }`}
               >
                 {saving ? 'Saving...' : 'Save Template 💾'}
               </motion.button>
@@ -323,6 +354,20 @@ export default function TemplatesPage() {
                                 />
                               ))}
                             </div>
+                            <button
+                              type="button"
+                              onClick={() => setEditForm(f => ({ ...f, isShared: !f.isShared }))}
+                              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl border-2 transition-all text-sm ${
+                                editForm.isShared ? 'bg-green-50 border-green-300' : 'bg-white/50 border-white/60'
+                              }`}
+                            >
+                              <span className={`font-semibold ${editForm.isShared ? 'text-green-700' : 'text-gray-500'}`}>
+                                {editForm.isShared ? '💚 Shared with partner' : '🤍 Only visible to me'}
+                              </span>
+                              <div className={`w-8 h-4 rounded-full flex items-center ${editForm.isShared ? 'bg-green-400' : 'bg-gray-300'}`}>
+                                <div className={`w-3 h-3 bg-white rounded-full shadow transition-all ${editForm.isShared ? 'ml-4' : 'ml-0.5'}`} />
+                              </div>
+                            </button>
                             <div className="flex gap-2">
                               <button
                                 onClick={handleUpdate}
@@ -347,7 +392,10 @@ export default function TemplatesPage() {
                           >
                             <span className="text-2xl">{tpl.emoji}</span>
                             <div className="flex-1 min-w-0">
-                              <p className="font-bold text-gray-700 text-sm truncate">{tpl.name}</p>
+                              <div className="flex items-center gap-1.5">
+                                <p className="font-bold text-gray-700 text-sm truncate">{tpl.name}</p>
+                                {tpl.isShared && <span className="text-xs flex-shrink-0">💚</span>}
+                              </div>
                               <p className="text-xs text-gray-500 truncate">{tpl.status}</p>
                               {tpl.note && (
                                 <p className="text-xs text-gray-400 italic truncate">{tpl.note}</p>

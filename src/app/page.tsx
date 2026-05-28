@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Check } from 'lucide-react'
-import { format } from 'date-fns'
+import { format, addDays, subDays, parseISO } from 'date-fns'
 import AnimatedBackground from '@/components/AnimatedBackground'
 import Navbar from '@/components/Navbar'
 import UserSelector, { useCurrentUser } from '@/components/UserSelector'
@@ -43,6 +43,7 @@ export default function HomePage() {
   const [editEntry, setEditEntry] = useState<StatusEntry | null>(null)
   const [editLoading, setEditLoading] = useState(false)
   const today = getTodayString()
+  const [timelineDate, setTimelineDate] = useState(today)
 
   const userConfig = currentUser ? getUserConfig(currentUser.userId) : null
 
@@ -58,13 +59,20 @@ export default function HomePage() {
 
   const fetchTodayEntries = useCallback(async () => {
     try {
-      const res = await fetch(`/api/status?date=${today}`)
+      const res = await fetch(`/api/status?date=${timelineDate}`)
       const data = await res.json()
       setTodayEntries(data.entries)
     } catch (err) {
       console.error('Failed to fetch today entries', err)
     }
-  }, [today])
+  }, [timelineDate])
+
+  const goToPrevDay = useCallback(() =>
+    setTimelineDate(format(subDays(parseISO(timelineDate), 1), 'yyyy-MM-dd')), [timelineDate])
+  const goToNextDay = useCallback(() => {
+    const next = format(addDays(parseISO(timelineDate), 1), 'yyyy-MM-dd')
+    if (next <= today) setTimelineDate(next)
+  }, [timelineDate, today])
 
   useEffect(() => {
     fetchCurrentStatus()
@@ -246,7 +254,12 @@ export default function HomePage() {
                   whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(167,139,250,0.3)' }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => setShowAddModal(true)}
-                  className={`w-full rounded-3xl px-6 py-5 font-bold text-white text-lg shadow-lg transition-all duration-200 flex items-center justify-center gap-3 ${userConfig?.buttonClass ?? 'bg-violet-400 hover:bg-violet-500'}`}
+                  style={currentUser.userId === 'anthony' ? { backgroundColor: '#FEE12B' } : {}}
+                  className={`w-full rounded-3xl px-6 py-5 font-bold text-lg shadow-lg transition-all duration-200 flex items-center justify-center gap-3 ${
+                    currentUser.userId === 'anthony'
+                      ? 'text-gray-900 hover:brightness-95'
+                      : `text-white ${userConfig?.buttonClass ?? 'bg-violet-400 hover:bg-violet-500'}`
+                  }`}
                 >
                   <span className="text-2xl">{userConfig?.mascot}</span>
                   <span>What are you up to? ✨</span>
@@ -259,9 +272,11 @@ export default function HomePage() {
           <div className="lg:col-span-1 lg:sticky lg:top-20 lg:self-start">
             <DailyTimeline
               entries={todayEntries}
-              date={today}
+              date={timelineDate}
               onEdit={(entry) => setEditEntry(entry as StatusEntry)}
               onDelete={handleDelete}
+              onPrevDay={goToPrevDay}
+              onNextDay={timelineDate < today ? goToNextDay : undefined}
             />
           </div>
         </div>

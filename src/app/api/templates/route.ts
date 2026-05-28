@@ -3,17 +3,22 @@ import { prisma } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
+const PARTNER: Record<string, string> = { jeanette: 'anthony', anthony: 'jeanette' }
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
+    if (!userId) return NextResponse.json({ error: 'userId is required' }, { status: 400 })
 
-    if (!userId) {
-      return NextResponse.json({ error: 'userId is required' }, { status: 400 })
-    }
-
+    const partnerId = PARTNER[userId]
     const templates = await prisma.statusTemplate.findMany({
-      where: { userId },
+      where: {
+        OR: [
+          { userId },
+          ...(partnerId ? [{ userId: partnerId, isShared: true }] : []),
+        ],
+      },
       orderBy: { createdAt: 'asc' },
     })
 
@@ -27,12 +32,10 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { userId, name, status, emoji, color, note } = body
-
+    const { userId, name, status, emoji, color, note, isShared } = body
     if (!userId || !name || !status) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
-
     const template = await prisma.statusTemplate.create({
       data: {
         userId,
@@ -41,9 +44,9 @@ export async function POST(request: NextRequest) {
         emoji: emoji || '✨',
         color: color || '#e9d5ff',
         note: note || null,
+        isShared: isShared ?? false,
       },
     })
-
     return NextResponse.json({ template })
   } catch (error) {
     console.error('POST /api/templates error:', error)

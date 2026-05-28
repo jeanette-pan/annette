@@ -174,6 +174,16 @@ export default function CalendarView() {
     }
   }
 
+  const handleDeleteEntry = async (entryId: string) => {
+    setDayEntries(prev => prev.filter(e => e.id !== entryId))
+    try {
+      await fetch(`/api/status/${entryId}?reopenPrevious=true`, { method: 'DELETE' })
+      await fetchMonthData()
+    } catch {
+      await fetchMonthData()
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-lg border border-white/60 p-6">
@@ -434,7 +444,7 @@ export default function CalendarView() {
                       {ev.isShared && <span className="text-xs flex-shrink-0">💚</span>}
                       <button
                         onClick={() => handleDeleteEvent(ev.id)}
-                        className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-red-100 text-red-400 transition-all flex-shrink-0"
+                        className="p-1 rounded-lg hover:bg-red-100 text-red-300 hover:text-red-500 transition-colors flex-shrink-0"
                         title="Delete event"
                       >
                         <X size={13} />
@@ -448,6 +458,7 @@ export default function CalendarView() {
             <SplitTimeline
               entries={dayEntries}
               date={format(selectedDate, 'yyyy-MM-dd')}
+              onDelete={handleDeleteEntry}
             />
           </motion.div>
         )}
