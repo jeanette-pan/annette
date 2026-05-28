@@ -37,6 +37,15 @@ model StatusTemplate {
   updatedAt DateTime @updatedAt
 }
 
+model EmotionEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  emotion   String
+  startTime DateTime @default(now())
+
+  @@index([userId, startTime])
+}
+
 model CalendarEvent {
   id        String   @id @default(cuid())
   title     String

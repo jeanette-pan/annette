@@ -10,9 +10,11 @@ import UserSelector, { useCurrentUser } from '@/components/UserSelector'
 import CurrentStatusCard from '@/components/CurrentStatusCard'
 import AddStatusModal from '@/components/AddStatusModal'
 import DailyTimeline from '@/components/DailyTimeline'
+import EmotionSelector from '@/components/EmotionSelector'
 import { getTodayString } from '@/lib/utils'
 import { getUserConfig } from '@/lib/statusConfig'
 import type { StatusFormData } from '@/components/StatusButtons'
+import type { EmotionId, EmotionData } from '@/lib/emotionConfig'
 
 type StatusEntry = {
   id: string
@@ -46,6 +48,45 @@ export default function HomePage() {
   const [timelineDate, setTimelineDate] = useState(today)
 
   const userConfig = currentUser ? getUserConfig(currentUser.userId) : null
+
+  // ── Emotion state ──────────────────────────────────────────────────────────
+  const [currentEmotion, setCurrentEmotion] = useState<string | null>(null)
+  const [emotionEntries, setEmotionEntries] = useState<{ jeanette: EmotionData[]; anthony: EmotionData[] }>(
+    { jeanette: [], anthony: [] }
+  )
+
+  // Fetch current emotion when user identity changes
+  useEffect(() => {
+    if (!currentUser) return
+    fetch(`/api/emotions/current?userId=${currentUser.userId}`)
+      .then(r => r.json())
+      .then(d => setCurrentEmotion(d.emotion ?? null))
+      .catch(() => {})
+  }, [currentUser?.userId])
+
+  // Fetch emotion history when timeline date changes (not on every 5s poll)
+  const fetchEmotionHistory = useCallback(async (date: string) => {
+    try {
+      const [jRes, aRes] = await Promise.all([
+        fetch(`/api/emotions?userId=jeanette&date=${date}`),
+        fetch(`/api/emotions?userId=anthony&date=${date}`),
+      ])
+      const [jData, aData] = await Promise.all([jRes.json(), aRes.json()])
+      setEmotionEntries({
+        jeanette: jData.entries ?? [],
+        anthony:  aData.entries ?? [],
+      })
+    } catch { /* silent */ }
+  }, [])
+
+  useEffect(() => { fetchEmotionHistory(timelineDate) }, [timelineDate, fetchEmotionHistory])
+
+  const handleEmotionChange = useCallback((id: EmotionId) => {
+    setCurrentEmotion(id)
+    // Refresh emotion history so the timeline reflects the new emotion immediately
+    setTimeout(() => fetchEmotionHistory(timelineDate), 150)
+  }, [timelineDate, fetchEmotionHistory])
+  // ──────────────────────────────────────────────────────────────────────────
 
   const fetchCurrentStatus = useCallback(async () => {
     try {
@@ -250,20 +291,29 @@ export default function HomePage() {
                   <p className="font-medium">Select who you are first!</p>
                 </div>
               ) : (
-                <motion.button
-                  whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(167,139,250,0.3)' }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => setShowAddModal(true)}
-                  style={currentUser.userId === 'anthony' ? { backgroundColor: '#FEE12B' } : {}}
-                  className={`w-full rounded-3xl px-6 py-5 font-bold text-lg shadow-lg transition-all duration-200 flex items-center justify-center gap-3 ${
-                    currentUser.userId === 'anthony'
-                      ? 'text-gray-900 hover:brightness-95'
-                      : `text-white ${userConfig?.buttonClass ?? 'bg-violet-400 hover:bg-violet-500'}`
-                  }`}
-                >
-                  <span className="text-2xl">{userConfig?.mascot}</span>
-                  <span>What are you up to? ✨</span>
-                </motion.button>
+                <div className="space-y-3">
+                  <motion.button
+                    whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(167,139,250,0.3)' }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setShowAddModal(true)}
+                    style={currentUser.userId === 'anthony' ? { backgroundColor: '#FEE12B' } : {}}
+                    className={`w-full rounded-3xl px-6 py-5 font-bold text-lg shadow-lg transition-all duration-200 flex items-center justify-center gap-3 ${
+                      currentUser.userId === 'anthony'
+                        ? 'text-gray-900 hover:brightness-95'
+                        : `text-white ${userConfig?.buttonClass ?? 'bg-violet-400 hover:bg-violet-500'}`
+                    }`}
+                  >
+                    <span className="text-2xl">{userConfig?.mascot}</span>
+                    <span>What are you up to? ✨</span>
+                  </motion.button>
+
+                  {/* Emotion selector */}
+                  <EmotionSelector
+                    userId={currentUser.userId}
+                    currentEmotion={currentEmotion}
+                    onChange={handleEmotionChange}
+                  />
+                </div>
               )}
             </section>
           </div>
@@ -273,6 +323,8 @@ export default function HomePage() {
             <DailyTimeline
               entries={todayEntries}
               date={timelineDate}
+              jEmotions={emotionEntries.jeanette}
+              aEmotions={emotionEntries.anthony}
               onEdit={(entry) => setEditEntry(entry as StatusEntry)}
               onDelete={handleDelete}
               onPrevDay={goToPrevDay}

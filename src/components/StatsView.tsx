@@ -11,6 +11,7 @@ import { motion } from 'framer-motion'
 import { useCurrentUser } from './UserSelector'
 import { getUserConfig } from '@/lib/statusConfig'
 import { getWeekStart, getSleepGoalHours, setSleepGoalHours, isSleepStatus, isEatingStatus } from '@/lib/utils'
+import { EMOTIONS, computeDaySegments, getDominantEmotion, type EmotionData } from '@/lib/emotionConfig'
 
 type StatusStat = {
   hours: number
@@ -63,6 +64,14 @@ function getPeriodLabel(period: Period, cursor: Date): string {
   }
   if (period === 'monthly') return format(cursor, 'MMMM yyyy')
   return format(cursor, 'yyyy')
+}
+
+function buildEmotionParams(period: Period, cursor: Date, userId: string): string {
+  const base = `/api/emotions?userId=${userId}`
+  if (period === 'daily')   return `${base}&date=${format(cursor, 'yyyy-MM-dd')}`
+  if (period === 'weekly')  return `${base}&from=${getWeekStart(cursor)}`
+  if (period === 'monthly') return `${base}&from=${format(new Date(cursor.getFullYear(), cursor.getMonth(), 1), 'yyyy-MM-dd')}`
+  return `${base}&from=${format(new Date(cursor.getFullYear(), 0, 1), 'yyyy-MM-dd')}`
 }
 
 function buildApiParams(period: Period, cursor: Date, userId: string): string {
@@ -140,6 +149,7 @@ export default function StatsView() {
   const [anthonyData, setAnthonyData] = useState<StatsData | null>(null)
   const [loading, setLoading] = useState(false)
   const [sleepGoal, setSleepGoalState] = useState(8)
+  const [emotionHistory, setEmotionHistory] = useState<EmotionData[]>([])
 
   // Set userMode to current user's id when user logs in
   useEffect(() => {
@@ -183,6 +193,15 @@ export default function StatsView() {
   useEffect(() => {
     fetchStats()
   }, [fetchStats])
+
+  // Fetch emotion history for individual users (not "both" mode)
+  useEffect(() => {
+    if (userMode === 'both') { setEmotionHistory([]); return }
+    fetch(buildEmotionParams(period, cursor, userMode))
+      .then(r => r.json())
+      .then(d => setEmotionHistory(d.entries ?? []))
+      .catch(() => setEmotionHistory([]))
+  }, [period, cursor, userMode])
 
   const jConfig = getUserConfig('jeanette')
   const aConfig = getUserConfig('anthony')
@@ -751,6 +770,128 @@ export default function StatsView() {
                       ))}
                     </>
                   )}
+                </div>
+              )}
+            </motion.div>
+          )}
+          {/* Emotional atmosphere — individual users only */}
+          {userMode !== 'both' && emotionHistory.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-lg border border-white/60 p-6"
+            >
+              <h3 className="text-lg font-bold text-violet-700 mb-4">Emotional Atmosphere 🌈</h3>
+
+              {/* Daily: horizontal emotion strip */}
+              {period === 'daily' && (() => {
+                const dateStr = format(cursor, 'yyyy-MM-dd')
+                const segs = computeDaySegments(emotionHistory, dateStr)
+                if (!segs.length) return <p className="text-xs text-gray-300 text-center py-2">No mood data for this day.</p>
+                return (
+                  <div>
+                    <div className="h-7 rounded-xl overflow-hidden flex mb-3">
+                      {segs.map((seg, i) => (
+                        <div
+                          key={i}
+                          className="h-full"
+                          style={{ flex: seg.endMin - seg.startMin, backgroundColor: seg.emotion.stripColor, opacity: 0.82 }}
+                          title={`${seg.emotion.emoji} ${seg.emotion.label}: ${formatMins(seg.endMin - seg.startMin)}`}
+                        />
+                      ))}
+                    </div>
+                    <div className="flex flex-wrap gap-x-3 gap-y-1.5">
+                      {segs.map((seg, i) => (
+                        <div key={i} className="flex items-center gap-1">
+                          <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: seg.emotion.orbColor }} />
+                          <span className="text-[10px] text-gray-500">{seg.emotion.emoji} {seg.emotion.label} · {formatMins(seg.endMin - seg.startMin)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* Weekly: 7-day dominant emotion heatmap */}
+              {period === 'weekly' && (() => {
+                const weekStart = parseISO(getWeekStart(cursor))
+                const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
+                return (
+                  <div>
+                    <p className="text-xs text-gray-400 mb-3">Dominant mood each day</p>
+                    <div className="flex gap-2">
+                      {days.map(day => {
+                        const ds = format(day, 'yyyy-MM-dd')
+                        const dom = getDominantEmotion(emotionHistory, ds)
+                        return (
+                          <div key={ds} className="flex-1 flex flex-col items-center gap-1.5">
+                            <div
+                              className="w-full aspect-square rounded-xl flex items-center justify-center text-lg"
+                              style={{
+                                backgroundColor: dom ? dom.selectorBg : '#f3f4f6',
+                                boxShadow: dom ? `0 0 8px ${dom.glowColor}` : undefined,
+                              }}
+                              title={dom ? `${dom.emoji} ${dom.label}` : 'No data'}
+                            >
+                              {dom ? dom.emoji : <span className="text-gray-300 text-xs">·</span>}
+                            </div>
+                            <span className="text-[9px] text-gray-400 font-medium">{format(day, 'EEE')}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* Monthly: calendar grid heatmap */}
+              {period === 'monthly' && (() => {
+                const year = cursor.getFullYear()
+                const month = cursor.getMonth()
+                const firstDay = new Date(year, month, 1)
+                const dayCount = new Date(year, month + 1, 0).getDate()
+                // Monday-first offset: Sun=0 → offset 6, Mon=1 → offset 0, etc.
+                const startOffset = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1
+                return (
+                  <div>
+                    <p className="text-xs text-gray-400 mb-3">Dominant mood each day</p>
+                    <div className="grid grid-cols-7 gap-1">
+                      {['M','T','W','T','F','S','S'].map((d, i) => (
+                        <div key={i} className="text-[9px] text-gray-400 font-bold text-center pb-1">{d}</div>
+                      ))}
+                      {Array.from({ length: startOffset }).map((_, i) => <div key={`b${i}`} />)}
+                      {Array.from({ length: dayCount }, (_, i) => {
+                        const ds = format(new Date(year, month, i + 1), 'yyyy-MM-dd')
+                        const dom = getDominantEmotion(emotionHistory, ds)
+                        return (
+                          <div
+                            key={ds}
+                            className="aspect-square rounded-lg flex items-center justify-center text-[10px]"
+                            style={{
+                              backgroundColor: dom ? dom.selectorBg : '#f9fafb',
+                              boxShadow: dom ? `0 0 4px ${dom.glowColor}` : undefined,
+                            }}
+                            title={dom ? `${dom.emoji} ${dom.label}` : format(new Date(year, month, i + 1), 'MMM d')}
+                          >
+                            {dom ? dom.emoji : <span className="text-gray-200 text-[8px]">{i + 1}</span>}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* Legend */}
+              {(period === 'weekly' || period === 'monthly') && (
+                <div className="flex flex-wrap gap-x-3 gap-y-1.5 mt-4 pt-3 border-t border-gray-100">
+                  {EMOTIONS.map(em => (
+                    <div key={em.id} className="flex items-center gap-1">
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: em.orbColor }} />
+                      <span className="text-[9px] text-gray-400">{em.emoji} {em.label}</span>
+                    </div>
+                  ))}
                 </div>
               )}
             </motion.div>
