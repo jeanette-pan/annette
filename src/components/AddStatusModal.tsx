@@ -172,7 +172,7 @@ export default function AddStatusModal({
                     </Link>
                   </div>
                   {templates.length > 0 ? (
-                    <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
+                    <div className="flex flex-wrap gap-2 max-h-[7.5rem] overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
                       {templates.map((tpl) => (
                         <div
                           key={tpl.id}
@@ -250,12 +250,24 @@ export default function AddStatusModal({
                 </div>
                 <div>
                   <label className="text-xs font-bold text-gray-400 mb-1.5 block uppercase tracking-wide">End Time (opt)</label>
-                  <input
-                    type="datetime-local"
-                    value={endTime}
-                    onChange={(e) => setEndTime(e.target.value)}
-                    className="w-full border-2 border-violet-200 rounded-2xl px-3 py-2 text-gray-700 focus:outline-none focus:border-violet-400 bg-violet-50/50 text-sm"
-                  />
+                  <div className="relative">
+                    <input
+                      type="datetime-local"
+                      value={endTime}
+                      onChange={(e) => setEndTime(e.target.value)}
+                      className="w-full border-2 border-violet-200 rounded-2xl px-3 py-2 text-gray-700 focus:outline-none focus:border-violet-400 bg-violet-50/50 text-sm pr-8"
+                    />
+                    {endTime && (
+                      <button
+                        type="button"
+                        onClick={() => setEndTime('')}
+                        title="Clear end time"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-full bg-gray-200 hover:bg-red-100 text-gray-400 hover:text-red-500 transition-colors touch-manipulation"
+                      >
+                        <X size={10} />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 

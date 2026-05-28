@@ -6,11 +6,20 @@ export const dynamic = 'force-dynamic'
 export async function GET() {
   try {
     const userIds = ['jeanette', 'anthony']
+    const now = new Date()
     const entries: Record<string, object | null> = {}
 
     for (const userId of userIds) {
+      // Prefer an open (ongoing) entry; fall back to an entry that is currently
+      // active by wall-clock time (startTime ≤ now ≤ endTime).
       const entry = await prisma.statusEntry.findFirst({
-        where: { userId, endTime: null },
+        where: {
+          userId,
+          OR: [
+            { endTime: null },
+            { startTime: { lte: now }, endTime: { gte: now } },
+          ],
+        },
         orderBy: { startTime: 'desc' },
       })
       entries[userId] = entry

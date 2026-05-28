@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
           ...(partnerId ? [{ userId: partnerId, isShared: true }] : []),
         ],
       },
-      orderBy: { createdAt: 'asc' },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
     })
 
     return NextResponse.json({ templates })
