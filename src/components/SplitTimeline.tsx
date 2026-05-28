@@ -43,21 +43,6 @@ function fmtMs(ms: number) {
   return Math.floor(m / 60) > 0 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`
 }
 
-// Floating tooltip shown on hover for compact entries
-const EntryTooltip = memo(function EntryTooltip({ entry }: { entry: StatusEntry }) {
-  return (
-    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-max max-w-[190px] pointer-events-none
-                    bg-white/98 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-3">
-      <p className="font-bold text-xs text-gray-700 leading-snug">{entry.emoji} {entry.status}</p>
-      <p className="text-[10px] text-gray-500 mt-1">
-        {formatTime(entry.startTime)}{entry.endTime ? ` – ${formatTime(entry.endTime)}` : ' → Now'}
-      </p>
-      {entry.note && <p className="text-[10px] text-gray-400 italic mt-1 leading-snug">{entry.note}</p>}
-      {entry.isShared && <p className="text-[10px] text-green-600 font-semibold mt-1">🐧💚🦕 Together</p>}
-    </div>
-  )
-})
-
 const EntryBlock = memo(function EntryBlock({
   entry, top, height, isTogether, onEdit, onDelete,
 }: {
@@ -68,33 +53,84 @@ const EntryBlock = memo(function EntryBlock({
   onEdit?: (e: StatusEntry) => void
   onDelete?: (id: string) => void
 }) {
+  const [showDetails, setShowDetails] = useState(false)
+
   const px = Math.max(height, 26)
   const isCompact = height < 52
-  const isTiny = height < 30
   const isActive = !entry.endTime
 
+  const timeStr = isActive
+    ? `${formatTime(entry.startTime)} → Now`
+    : entry.endTime
+      ? `${formatTime(entry.startTime)} – ${formatTime(entry.endTime)}`
+      : formatTime(entry.startTime)
+
+  const durMs = Math.max(
+    (entry.endTime ? new Date(entry.endTime).getTime() : Date.now()) - new Date(entry.startTime).getTime(),
+    0
+  )
+  const detailLine = `${timeStr} · ${fmtMs(durMs)}`
+
+  const sharedBorder = isTogether
+    ? 'border-l-[3px] border-green-400 shadow-[0_0_10px_rgba(134,239,172,0.45)] ring-1 ring-green-200/70'
+    : 'border border-white/70 shadow-sm'
+
+  if (isCompact) {
+    // Short card: swap title ↔ time details on hover (desktop) or tap (mobile).
+    // Card size and position never change.
+    return (
+      <div
+        tabIndex={0}
+        className={`absolute left-0.5 right-0.5 rounded-xl overflow-hidden transition-shadow cursor-default select-none outline-none ${sharedBorder}`}
+        style={{ top, height: px, backgroundColor: entry.color, zIndex: 5 }}
+        onMouseEnter={() => setShowDetails(true)}
+        onMouseLeave={() => setShowDetails(false)}
+        onClick={(e) => { e.stopPropagation(); setShowDetails(prev => !prev) }}
+        onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setShowDetails(false) }}
+      >
+        {isActive && (
+          <span className="absolute top-1 right-1.5 w-1 h-1 bg-green-400 rounded-full border border-white animate-pulse z-10" />
+        )}
+
+        {showDetails && (onEdit || onDelete) && (
+          <div className="absolute top-0.5 right-0.5 flex gap-0.5 bg-white/95 rounded-lg px-1 py-0.5 shadow z-20">
+            {onEdit && (
+              <button onClick={e => { e.stopPropagation(); onEdit(entry) }} className="p-0.5 rounded hover:bg-violet-100 text-violet-400">
+                <Pencil size={9} />
+              </button>
+            )}
+            {onDelete && (
+              <button onClick={e => { e.stopPropagation(); onDelete(entry.id) }} className="p-0.5 rounded hover:bg-red-100 text-red-400">
+                <Trash2 size={9} />
+              </button>
+            )}
+          </div>
+        )}
+
+        <div className="px-1.5 h-full flex items-center overflow-hidden">
+          {!showDetails ? (
+            <div className="flex items-center gap-0.5 min-w-0 w-full">
+              <span className="text-[11px] leading-none flex-shrink-0">{entry.emoji}</span>
+              <span className="font-bold text-[9px] text-gray-700 truncate leading-tight">{entry.status}</span>
+            </div>
+          ) : (
+            <span className="text-[9px] text-gray-600 font-medium truncate leading-tight w-full">{detailLine}</span>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // Normal card: always shows title + time row; edit/delete appear on hover.
   return (
     <div
-      className={`group absolute left-0.5 right-0.5 rounded-xl overflow-visible transition-shadow ${
-        isTogether
-          ? 'border-l-[3px] border-green-400 shadow-[0_0_10px_rgba(134,239,172,0.45)] ring-1 ring-green-200/70'
-          : 'border border-white/70 shadow-sm'
-      }`}
-      style={{ top, height: px, backgroundColor: entry.color, zIndex: isCompact ? 5 : 2 }}
+      className={`group absolute left-0.5 right-0.5 rounded-xl overflow-hidden transition-shadow ${sharedBorder}`}
+      style={{ top, height: px, backgroundColor: entry.color, zIndex: 2 }}
     >
-      {/* Tooltip for short entries */}
-      {isCompact && (
-        <div className="absolute bottom-full left-0 mb-1.5 hidden group-hover:block z-50">
-          <EntryTooltip entry={entry} />
-        </div>
-      )}
-
-      {/* Active pulse dot */}
       {isActive && (
         <span className="absolute top-1.5 right-5 w-1.5 h-1.5 bg-green-400 rounded-full border border-white animate-pulse z-10" />
       )}
 
-      {/* Edit / Delete on hover */}
       {(onEdit || onDelete) && (
         <div className="absolute top-0.5 right-0.5 hidden group-hover:flex gap-0.5 bg-white/95 rounded-lg px-1 py-0.5 shadow z-20">
           {onEdit && (
@@ -110,28 +146,19 @@ const EntryBlock = memo(function EntryBlock({
         </div>
       )}
 
-      {/* Card content — minimal for tiny entries, full for normal */}
       <div className="px-1.5 py-1 h-full flex flex-col overflow-hidden">
         <div className="flex items-center gap-0.5 min-w-0">
           <span className="text-xs leading-none flex-shrink-0">{entry.emoji}</span>
-          {!isTiny && (
-            <span className={`font-bold text-gray-700 truncate leading-tight ${isCompact ? 'text-[9px]' : 'text-[10px]'}`}>
-              {entry.status}{isSleepStatus(entry.status) ? ' 😴' : ''}
-            </span>
-          )}
+          <span className="font-bold text-[10px] text-gray-700 truncate leading-tight">
+            {entry.status}{isSleepStatus(entry.status) ? ' 😴' : ''}
+          </span>
         </div>
-        {!isCompact && (
-          <>
-            <p className="text-[9px] text-gray-500 mt-0.5 leading-tight whitespace-nowrap">
-              {formatTime(entry.startTime)}{isActive ? ' → Now' : entry.endTime ? ` – ${formatTime(entry.endTime)}` : ''}
-            </p>
-            {isTogether && (
-              <span className="text-[8px] text-green-700 font-bold mt-0.5 leading-tight">💚 Together</span>
-            )}
-            {entry.note && (
-              <p className="text-[9px] text-gray-400 italic mt-0.5 line-clamp-4 break-words leading-snug">{entry.note}</p>
-            )}
-          </>
+        <p className="text-[9px] text-gray-500 mt-0.5 leading-tight whitespace-nowrap">{timeStr}</p>
+        {isTogether && (
+          <span className="text-[8px] text-green-700 font-bold mt-0.5 leading-tight">💚 Together</span>
+        )}
+        {entry.note && (
+          <p className="text-[9px] text-gray-400 italic mt-0.5 line-clamp-4 break-words leading-snug">{entry.note}</p>
         )}
       </div>
     </div>
