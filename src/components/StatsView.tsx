@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { format, addMonths, subMonths, addWeeks, subWeeks, addDays, subDays, addYears, subYears, parseISO } from 'date-fns'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import {
@@ -188,76 +188,96 @@ export default function StatsView() {
   const aConfig = getUserConfig('anthony')
   const userConfig = currentUser ? getUserConfig(currentUser.userId) : jConfig
 
-  const sortedStatuses = statsData
-    ? Object.entries(statsData.stats).sort((a, b) => b[1].minutes - a[1].minutes)
-    : []
+  const sortedStatuses = useMemo(
+    () => statsData ? Object.entries(statsData.stats).sort((a, b) => b[1].minutes - a[1].minutes) : [],
+    [statsData]
+  )
 
-  const pieData = sortedStatuses.map(([status, data]) => ({
-    name: status,
-    value: data.minutes,
-    percentage: data.percentage,
-    color: data.color,
-    emoji: data.emoji,
-  }))
+  const pieData = useMemo(
+    () => sortedStatuses.map(([status, data]) => ({
+      name: status,
+      value: data.minutes,
+      percentage: data.percentage,
+      color: data.color,
+      emoji: data.emoji,
+    })),
+    [sortedStatuses]
+  )
 
-  const topStatus = sortedStatuses[0]
-  const totalEntries = statsData
-    ? Object.values(statsData.stats).reduce((sum, s) => sum + s.count, 0)
-    : 0
-  const longestSession = statsData
-    ? Object.values(statsData.stats).reduce((max, s) => Math.max(max, s.longestSessionMinutes), 0)
-    : 0
+  const pieDataByName = useMemo(
+    () => new Map(pieData.map(p => [p.name, p])),
+    [pieData]
+  )
+
+  const { topStatus, totalEntries, longestSession } = useMemo(() => ({
+    topStatus: sortedStatuses[0] as typeof sortedStatuses[0] | undefined,
+    totalEntries: sortedStatuses.reduce((sum, [, s]) => sum + s.count, 0),
+    longestSession: sortedStatuses.reduce((max, [, s]) => Math.max(max, s.longestSessionMinutes), 0),
+  }), [sortedStatuses])
 
   // Sleep data
-  const sleepEntries = sortedStatuses.filter(([status]) => isSleepStatus(status))
-  const totalSleepMinutes = sleepEntries.reduce((sum, [, s]) => sum + s.minutes, 0)
+  const { sleepEntries, totalSleepMinutes } = useMemo(() => {
+    const sleepEntries = sortedStatuses.filter(([status]) => isSleepStatus(status))
+    return { sleepEntries, totalSleepMinutes: sleepEntries.reduce((sum, [, s]) => sum + s.minutes, 0) }
+  }, [sortedStatuses])
   const sleepGoalMinutes = sleepGoal * 60
 
   // Eating data (for daily goals)
   const EATING_GOAL = 3
-  const eatingEntries = sortedStatuses.filter(([status]) => isEatingStatus(status))
-  const totalEatingCount = eatingEntries.reduce((sum, [, s]) => sum + s.count, 0)
+  const totalEatingCount = useMemo(
+    () => sortedStatuses.filter(([status]) => isEatingStatus(status)).reduce((sum, [, s]) => sum + s.count, 0),
+    [sortedStatuses]
+  )
 
   // Bar chart data — per day/period breakdown
-  const barData = statsData?.dailyBreakdown.map((day) => {
-    const obj: Record<string, string | number> = { date: day.date.substring(5) } // MM-DD
-    for (const e of day.entries) {
-      obj[e.status] = Math.round(e.minutes / 60 * 10) / 10
-    }
-    return obj
-  }) ?? []
+  const { barData, allStatuses } = useMemo(() => {
+    if (!statsData) return { barData: [], allStatuses: [] }
+    const barData = statsData.dailyBreakdown.map((day) => {
+      const obj: Record<string, string | number> = { date: day.date.substring(5) }
+      for (const e of day.entries) {
+        obj[e.status] = Math.round(e.minutes / 60 * 10) / 10
+      }
+      return obj
+    })
+    return { barData, allStatuses: Object.keys(statsData.stats) }
+  }, [statsData])
 
-  // All unique statuses for bar chart bars
-  const allStatuses = statsData ? Object.keys(statsData.stats) : []
+  const lastStatusIndex = allStatuses.length - 1
 
   // Couple comparison data (for "both" mode)
-  const coupleBarData = userMode === 'both' && jeanetteData && anthonyData
-    ? allStatuses.map((status) => ({
-        status,
-        emoji: (jeanetteData.stats[status] ?? anthonyData.stats[status])?.emoji ?? '✨',
-        Jeanette: jeanetteData.stats[status] ? Math.round(jeanetteData.stats[status].minutes / 60 * 10) / 10 : 0,
-        Anthony: anthonyData.stats[status] ? Math.round(anthonyData.stats[status].minutes / 60 * 10) / 10 : 0,
-      }))
-    : []
+  const coupleBarData = useMemo(
+    () => userMode === 'both' && jeanetteData && anthonyData
+      ? allStatuses.map((status) => ({
+          status,
+          emoji: (jeanetteData.stats[status] ?? anthonyData.stats[status])?.emoji ?? '✨',
+          Jeanette: jeanetteData.stats[status] ? Math.round(jeanetteData.stats[status].minutes / 60 * 10) / 10 : 0,
+          Anthony: anthonyData.stats[status] ? Math.round(anthonyData.stats[status].minutes / 60 * 10) / 10 : 0,
+        }))
+      : [],
+    [userMode, jeanetteData, anthonyData, allStatuses]
+  )
 
   // Overlap: statuses where both have entries
-  const syncStatuses = userMode === 'both' && jeanetteData && anthonyData
-    ? allStatuses
-        .filter((s) => jeanetteData.stats[s] && anthonyData.stats[s])
-        .map((s) => ({
-          status: s,
-          emoji: jeanetteData.stats[s].emoji,
-          jMin: jeanetteData.stats[s].minutes,
-          aMin: anthonyData.stats[s].minutes,
-          diff: Math.abs(jeanetteData.stats[s].minutes - anthonyData.stats[s].minutes),
-        }))
-        .sort((a, b) => a.diff - b.diff)
-    : []
+  const syncStatuses = useMemo(
+    () => userMode === 'both' && jeanetteData && anthonyData
+      ? allStatuses
+          .filter((s) => jeanetteData.stats[s] && anthonyData.stats[s])
+          .map((s) => ({
+            status: s,
+            emoji: jeanetteData.stats[s].emoji,
+            jMin: jeanetteData.stats[s].minutes,
+            aMin: anthonyData.stats[s].minutes,
+            diff: Math.abs(jeanetteData.stats[s].minutes - anthonyData.stats[s].minutes),
+          }))
+          .sort((a, b) => a.diff - b.diff)
+      : [],
+    [userMode, jeanetteData, anthonyData, allStatuses]
+  )
 
-  const handleSleepGoalChange = (val: number) => {
+  const handleSleepGoalChange = useCallback((val: number) => {
     setSleepGoalState(val)
     if (currentUser) setSleepGoalHours(currentUser.userId, val)
-  }
+  }, [currentUser])
 
   const PERIOD_TABS: { key: Period; label: string }[] = [
     { key: 'daily', label: 'Daily' },
@@ -446,13 +466,13 @@ export default function StatsView() {
                       )
                     }}
                   />
-                  {allStatuses.map((status) => (
+                  {allStatuses.map((status, idx) => (
                     <Bar
                       key={status}
                       dataKey={status}
                       stackId="a"
                       fill={statsData?.stats[status]?.color ?? '#e9d5ff'}
-                      radius={allStatuses.indexOf(status) === allStatuses.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                      radius={idx === lastStatusIndex ? [4, 4, 0, 0] : [0, 0, 0, 0]}
                     />
                   ))}
                 </BarChart>
@@ -490,7 +510,7 @@ export default function StatsView() {
                 <Tooltip
                   contentStyle={TOOLTIP_STYLE}
                   formatter={(value: number, name: string) => {
-                    const stat = pieData.find((p) => p.name === name)
+                    const stat = pieDataByName.get(name)
                     return [
                       `${formatMins(value)} (${stat?.percentage ?? 0}%)`,
                       `${stat?.emoji ?? ''} ${name}`,
@@ -499,7 +519,7 @@ export default function StatsView() {
                 />
                 <Legend
                   formatter={(value) => {
-                    const entry = pieData.find((p) => p.name === value)
+                    const entry = pieDataByName.get(value as string)
                     return (
                       <span style={{ fontFamily: 'Nunito', fontSize: '13px', fontWeight: '600' }}>
                         {entry?.emoji ?? '✨'} {value}
