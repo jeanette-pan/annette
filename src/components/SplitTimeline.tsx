@@ -1,24 +1,19 @@
 'use client'
 
-import { useMemo, memo, useState, useEffect, useRef } from 'react'
+import { useMemo, memo, useState, useEffect } from 'react'
 import { ChevronLeft, ChevronRight, Pencil, Trash2 } from 'lucide-react'
-import { formatTime, formatDate } from '@/lib/utils'
+import { formatTime, formatDate, isSleepStatus } from '@/lib/utils'
 import { parseISO } from 'date-fns'
 
-// ── Constants ─────────────────────────────────────────────────────────────────
-const PX_PER_MIN  = 0.55              // 33 px/hr; full day ≈ 792 px
-const TOTAL_H     = 1440 * PX_PER_MIN // 792 px — always the full day
-const TIME_AXIS_W = 32                // px for the left time-label column
-
-// Card heights — readable, NOT proportional to duration
-const CARD_H      = 56   // standard card height
-const CARD_NOTE_H = 14   // added per note line (up to 2)
-const CARD_H_MAX  = 82   // cap including notes
-const CARD_H_LONG = 38   // compressed card for long events (≥ 3 h)
-const LONG_MIN    = 180  // minutes threshold for compression
-
-// Hour ticks every 2 h: 12a 2a 4a … 10p
-const HOUR_MARKS = Array.from({ length: 12 }, (_, i) => i * 2)
+// ── Layout constants ──────────────────────────────────────────────────────────
+const PX_PER_MIN = 0.5        // 30px/hr — soft time scale
+const CARD_MIN_H = 68
+const CARD_MAX_H = 114
+const CARD_GAP = 6
+const LONG_MIN = 180          // ≥3h events get a compressed card
+const COMPRESSED_H = 52
+const NOTE_LINE_H = 14
+const TIME_AXIS_W = 32
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type StatusEntry = {
@@ -35,15 +30,15 @@ type StatusEntry = {
   isShared?: boolean
 }
 
-// LayoutItem has NO lane/laneCount — positioning is purely time-based.
 type LayoutItem = {
   entry: StatusEntry
-  top: number           // displayStartMin * PX_PER_MIN — never shifted
-  height: number        // readable fixed height, not proportional to duration
-  isCompressed: boolean // true when duration > LONG_MIN
-  durationMin: number   // visible duration on this day (for the text label)
-  zIndex: number        // later-starting entries sit on top when visually overlapping
+  top: number
+  height: number
+  isCompressed: boolean
+  durationMin: number
 }
+
+type Bridge = { y: number }
 
 type Props = {
   entries: StatusEntry[]
@@ -55,81 +50,46 @@ type Props = {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function minOfDay(d: Date): number {
-  return d.getHours() * 60 + d.getMinutes()
+function minOfDay(d: Date) { return d.getHours() * 60 + d.getMinutes() }
+
+function hourLabel(h: number) {
+  if (h === 0 || h === 24) return '12a'
+  if (h === 12) return '12p'
+  return h < 12 ? `${h}a` : `${h - 12}p`
 }
 
-function fmtDur(mins: number): string {
+function fmtDuration(mins: number): string {
   const h = Math.floor(mins / 60)
   const m = mins % 60
   if (h === 0) return `${m}m`
   return m > 0 ? `${h}h ${m}m` : `${h}h`
 }
 
-function hourLabel(h: number): string {
-  if (h === 0)  return '12a'
-  if (h === 12) return '12p'
-  return h < 12 ? `${h}a` : `${h - 12}p`
+function computeCardHeight(entry: StatusEntry, durationMin: number): { height: number; isCompressed: boolean } {
+  if (durationMin > LONG_MIN) return { height: COMPRESSED_H, isCompressed: true }
+  const noteLines = entry.note ? Math.min(Math.ceil(entry.note.length / 26), 3) : 0
+  return { height: Math.min(CARD_MIN_H + noteLines * NOTE_LINE_H, CARD_MAX_H), isCompressed: false }
 }
 
-// ── Layout ────────────────────────────────────────────────────────────────────
-// Pure function — no collision avoidance, no lane splitting, no shifting.
-// Each card's top = minutesSinceLocalMidnight * PX_PER_MIN, full stop.
-function layoutColumn(entries: StatusEntry[], viewDate: string, now: Date): LayoutItem[] {
-  const dayStart = new Date(viewDate + 'T00:00:00')
-  const dayEnd   = new Date(viewDate + 'T23:59:59.999')
-  const isToday  = viewDate === now.toISOString().slice(0, 10)
-
+function layoutColumn(entries: StatusEntry[], vsm: number, now: Date): LayoutItem[] {
   const sorted = [...entries].sort(
     (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
   )
+  const result: LayoutItem[] = []
+  let prevBottom = 0
 
-  const items: LayoutItem[] = []
-
-  for (let i = 0; i < sorted.length; i++) {
-    const entry      = sorted[i]
-    const rawStartMs = new Date(entry.startTime).getTime()
-    const rawEndMs   = entry.endTime ? new Date(entry.endTime).getTime() : null
-
-    // Clamp to this local day — handles cross-midnight entries:
-    //   previous day shows 11:51 PM → 12:00 AM (clipped to dayEnd)
-    //   next day shows 12:00 AM → 7:44 AM (clipped from dayStart)
-    const displayStartMs = Math.max(rawStartMs, dayStart.getTime())
-    const displayEndMs   = rawEndMs !== null
-      ? Math.min(rawEndMs, dayEnd.getTime())
-      : isToday
-        ? null               // ongoing today → no fixed end, show as live
-        : dayEnd.getTime()   // ongoing on a past day → clip to midnight
-
-    // Completely outside this day — skip
-    if (displayStartMs >= dayEnd.getTime()) continue
-    if (displayEndMs !== null && displayEndMs <= dayStart.getTime()) continue
-
-    const displayStartMin = minOfDay(new Date(displayStartMs))
-
-    // Duration uses ms arithmetic — avoids minOfDay subtraction wrapping at midnight
-    const endMs      = displayEndMs ?? now.getTime()
-    const durationMin = Math.max(Math.round((endMs - displayStartMs) / 60_000), 1)
-
-    const isCompressed = durationMin > LONG_MIN
-    const noteLines    = (!isCompressed && entry.note)
-      ? Math.min(Math.ceil(entry.note.length / 28), 2)
-      : 0
-    const height = isCompressed
-      ? CARD_H_LONG
-      : Math.min(CARD_H + noteLines * CARD_NOTE_H, CARD_H_MAX)
-
-    items.push({
-      entry,
-      top: displayStartMin * PX_PER_MIN,
-      height,
-      isCompressed,
-      durationMin,
-      zIndex: i + 1,   // later entries render on top when visually overlapping
-    })
+  for (const entry of sorted) {
+    const startMin = minOfDay(new Date(entry.startTime))
+    const rawEnd = entry.endTime ? minOfDay(new Date(entry.endTime)) : minOfDay(now)
+    const endMin = rawEnd >= startMin ? rawEnd : startMin + 30
+    const durationMin = endMin - startMin
+    const { height, isCompressed } = computeCardHeight(entry, durationMin)
+    const idealTop = Math.max(0, (startMin - vsm) * PX_PER_MIN)
+    const top = Math.max(idealTop, prevBottom + (result.length > 0 ? CARD_GAP : 0))
+    result.push({ entry, top, height, isCompressed, durationMin })
+    prevBottom = top + height
   }
-
-  return items
+  return result
 }
 
 // ── EntryCard ─────────────────────────────────────────────────────────────────
@@ -141,33 +101,21 @@ const EntryCard = memo(function EntryCard({
   onEdit?: (e: StatusEntry) => void
   onDelete?: (id: string) => void
 }) {
-  const { entry, top, height, isCompressed, durationMin, zIndex } = item
+  const { entry, top, height, isCompressed, durationMin } = item
   const isActive = !entry.endTime
 
   return (
     <div
-      className="group absolute rounded-xl overflow-hidden border border-white/50 shadow-sm hover:shadow-md transition-shadow duration-150"
-      style={{
-        top,
-        height,
-        left: 2,
-        right: 2,
-        zIndex,
-        backgroundColor: entry.color,
-      }}
+      className={`group absolute left-1 right-1 rounded-xl overflow-hidden transition-shadow duration-150 ${
+        isTogether
+          ? 'ring-2 ring-green-300 shadow-[0_0_10px_rgba(134,239,172,0.5)]'
+          : 'border border-white/50 shadow-sm hover:shadow-md'
+      }`}
+      style={{ top, height, backgroundColor: entry.color }}
     >
-      {/* Shared glow — purely decorative, no layout impact */}
-      {isTogether && (
-        <div
-          aria-hidden
-          className="absolute inset-0 rounded-xl pointer-events-none z-10"
-          style={{ boxShadow: '0 0 0 2px #86efac, 0 0 10px rgba(134,239,172,0.55)' }}
-        />
-      )}
-
-      {/* Edit / Delete */}
+      {/* Hover actions */}
       {(onEdit || onDelete) && (
-        <div className="absolute top-0.5 right-0.5 hidden group-hover:flex gap-0.5 bg-white/90 rounded-lg px-1 py-0.5 shadow z-20">
+        <div className="absolute top-1 right-1 hidden group-hover:flex gap-0.5 bg-white/90 rounded-lg px-1 py-0.5 shadow z-10">
           {onEdit && (
             <button
               onClick={e => { e.stopPropagation(); onEdit(entry) }}
@@ -187,25 +135,24 @@ const EntryCard = memo(function EntryCard({
         </div>
       )}
 
-      {/* Live pulse dot */}
+      {/* Active pulse */}
       {isActive && (
-        <span className="absolute top-1 right-4 w-1.5 h-1.5 bg-green-400 rounded-full border border-white animate-pulse z-10" />
+        <span className="absolute top-1.5 right-5 w-1.5 h-1.5 bg-green-400 rounded-full border border-white animate-pulse z-10" />
       )}
 
-      {/* Card content */}
-      <div className="px-1.5 py-1 h-full flex flex-col overflow-hidden">
-        {/* Row 1 — emoji, status name, duration */}
+      <div className="px-2 py-1.5 h-full flex flex-col overflow-hidden">
+        {/* Emoji + status name */}
         <div className="flex items-center gap-1 min-w-0">
-          <span className="text-[11px] leading-none flex-shrink-0">{entry.emoji}</span>
-          <span className="font-bold text-[10px] text-gray-700 truncate flex-1 leading-tight">
+          <span className="text-sm leading-none flex-shrink-0">{entry.emoji}</span>
+          <span className="font-bold text-[11px] text-gray-700 truncate flex-1">
             {entry.status}
+            {isSleepStatus(entry.status) && isCompressed ? ' 😴' : ''}
           </span>
-          <span className="text-[9px] text-gray-400 font-medium flex-shrink-0 ml-0.5">
-            {fmtDur(durationMin)}
-          </span>
+          {isCompressed && (
+            <span className="text-[9px] text-gray-400 font-medium flex-shrink-0">{fmtDuration(durationMin)}</span>
+          )}
         </div>
 
-        {/* Row 2+ — only on standard (non-compressed) cards */}
         {!isCompressed && (
           <>
             <p className="text-[9px] text-gray-500 mt-0.5 leading-tight whitespace-nowrap">
@@ -213,12 +160,12 @@ const EntryCard = memo(function EntryCard({
               {isActive ? ' → Now' : entry.endTime ? ` – ${formatTime(entry.endTime)}` : ''}
             </p>
             {entry.note && (
-              <p className="text-[9px] text-gray-400 italic mt-0.5 line-clamp-2 leading-snug break-words">
+              <p className="text-[9px] text-gray-400 italic mt-0.5 line-clamp-3 leading-snug break-words">
                 {entry.note}
               </p>
             )}
             {isTogether && (
-              <span className="text-[8px] text-green-700 font-bold mt-auto pt-0.5">💚 Together</span>
+              <span className="text-[8px] text-green-700 font-bold mt-auto pt-0.5 leading-tight">💚 Together</span>
             )}
           </>
         )}
@@ -227,39 +174,48 @@ const EntryCard = memo(function EntryCard({
   )
 })
 
-// ── Main component ────────────────────────────────────────────────────────────
-export default function SplitTimeline({
-  entries, date, onEdit, onDelete, onPrevDay, onNextDay,
-}: Props) {
+// ── Main ──────────────────────────────────────────────────────────────────────
+export default function SplitTimeline({ entries, date, onEdit, onDelete, onPrevDay, onNextDay }: Props) {
   const [now, setNow] = useState(() => new Date())
-  const scrollRef = useRef<HTMLDivElement>(null)
 
-  // Tick every minute so the "now" line and live durations stay current
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 60_000)
     return () => clearInterval(t)
   }, [])
 
-  const todayStr  = useMemo(() => new Date().toISOString().slice(0, 10), [])
   const dateLabel = useMemo(() => formatDate(parseISO(date)), [date])
+  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), [])
 
-  // Split entries by user once; don't re-split on every now-tick unless entries change
   const { jEntries, aEntries } = useMemo(() => ({
     jEntries: entries.filter(e => e.userId === 'jeanette'),
     aEntries: entries.filter(e => e.userId === 'anthony'),
   }), [entries])
 
-  // Layout is recomputed when entries, date, or now changes.
-  // For past days, 'now' doesn't affect layout (no ongoing entries),
-  // so the cost of the 60s re-render is minimal.
-  const jLayout = useMemo(() => layoutColumn(jEntries, date, now), [jEntries, date, now])
-  const aLayout = useMemo(() => layoutColumn(aEntries, date, now), [aEntries, date, now])
+  // View time range (snapped to hours, padded 1h on each side)
+  const { vsm, vem, hours } = useMemo(() => {
+    if (entries.length === 0) {
+      const hours = Array.from({ length: 15 }, (_, i) => i + 8)
+      return { vsm: 480, vem: 1320, hours }
+    }
+    const allMins = entries.flatMap(e => {
+      const s = minOfDay(new Date(e.startTime))
+      const rawE = e.endTime ? minOfDay(new Date(e.endTime)) : minOfDay(now)
+      return [s, rawE >= s ? rawE : s + 30]
+    })
+    const lo = Math.floor(Math.max(0, Math.min(...allMins) - 60) / 60) * 60
+    const hi = Math.min(Math.ceil((Math.max(...allMins) + 60) / 60) * 60, 1440)
+    const hours: number[] = []
+    for (let h = lo / 60; h <= hi / 60; h++) hours.push(h)
+    return { vsm: lo, vem: hi, hours }
+  }, [entries, now])
 
-  // Find shared-event pairs for the glow decoration + bridge emoji.
-  // This is VISUAL ONLY — it never touches top/height/left/right of any card.
-  const { togetherIds, bridges } = useMemo(() => {
+  const jLayout = useMemo(() => layoutColumn(jEntries, vsm, now), [jEntries, vsm, now])
+  const aLayout = useMemo(() => layoutColumn(aEntries, vsm, now), [aEntries, vsm, now])
+
+  // Together highlights and bridges
+  const { togetherIds, bridges } = useMemo<{ togetherIds: Set<string>; bridges: Bridge[] }>(() => {
     const togetherIds = new Set<string>()
-    const bridges: { y: number }[] = []
+    const bridges: Bridge[] = []
 
     for (const j of jLayout) {
       if (!j.entry.isShared) continue
@@ -271,35 +227,24 @@ export default function SplitTimeline({
         const aS = new Date(a.entry.startTime).getTime()
         const aE = a.entry.endTime ? new Date(a.entry.endTime).getTime() : now.getTime()
 
-        if (jS >= aE || aS >= jE) continue  // no time overlap
+        if (Math.max(jS, aS) >= Math.min(jE, aE)) continue
 
         togetherIds.add(j.entry.id)
         togetherIds.add(a.entry.id)
-
-        // Bridge y = average of the two cards' top positions on this timeline
-        bridges.push({ y: (j.top + a.top) / 2 })
+        bridges.push({ y: (j.top + j.height / 2 + a.top + a.height / 2) / 2 })
       }
     }
-
     return { togetherIds, bridges }
   }, [jLayout, aLayout, now])
 
-  // Scroll to current time (today) or first entry (past days) on date change only
-  useEffect(() => {
-    if (!scrollRef.current) return
-    let target: number
-    if (date === todayStr) {
-      target = Math.max(0, minOfDay(new Date()) * PX_PER_MIN - 100)
-    } else {
-      const allTops = [...jLayout, ...aLayout].map(l => l.top)
-      target = allTops.length > 0
-        ? Math.max(0, Math.min(...allTops) - 40)
-        : 8 * 60 * PX_PER_MIN  // default to 8 AM if no entries
-    }
-    scrollRef.current.scrollTop = target
-  }, [date, todayStr])  // intentionally excludes layout — only re-scroll on date change
+  const totalH = useMemo(() => {
+    const jBot = jLayout.at(-1) ? jLayout.at(-1)!.top + jLayout.at(-1)!.height : 0
+    const aBot = aLayout.at(-1) ? aLayout.at(-1)!.top + aLayout.at(-1)!.height : 0
+    return Math.max(jBot, aBot, (vem - vsm) * PX_PER_MIN) + 24
+  }, [jLayout, aLayout, vem, vsm])
 
-  const nowLineY = minOfDay(now) * PX_PER_MIN
+  const showNowLine = date === todayStr && minOfDay(now) >= vsm && minOfDay(now) <= vem
+  const nowTop = (minOfDay(now) - vsm) * PX_PER_MIN
 
   return (
     <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-lg border border-white/60 overflow-hidden flex flex-col max-h-[80vh]">
@@ -309,10 +254,7 @@ export default function SplitTimeline({
           <h2 className="text-lg font-bold text-violet-700">Our Timeline 🌸</h2>
           {(onPrevDay || onNextDay) && (
             <div className="flex gap-0.5">
-              <button
-                onClick={onPrevDay}
-                className="p-1.5 rounded-full hover:bg-violet-100 text-violet-500 transition-colors"
-              >
+              <button onClick={onPrevDay} className="p-1.5 rounded-full hover:bg-violet-100 text-violet-500 transition-colors">
                 <ChevronLeft size={15} />
               </button>
               <button
@@ -336,65 +278,63 @@ export default function SplitTimeline({
         </div>
       ) : (
         <>
-          {/* Column headers — equal 1fr widths via CSS grid */}
-          <div
-            className="flex-shrink-0 border-b border-gray-100"
-            style={{ display: 'grid', gridTemplateColumns: `${TIME_AXIS_W}px 1fr 12px 1fr` }}
-          >
-            <div />
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5" style={{ backgroundColor: '#ede9fe' }}>
+          {/* Column headers */}
+          <div className="flex flex-shrink-0 border-b border-gray-100" style={{ paddingLeft: TIME_AXIS_W }}>
+            <div className="flex-1 flex items-center gap-1.5 px-2.5 py-1.5 border-l border-gray-100/60" style={{ backgroundColor: '#ede9fe' }}>
               <span className="text-sm">🐧</span>
               <span className="font-bold text-[11px] text-violet-700">Jeanette</span>
             </div>
-            <div className="bg-white" />
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5" style={{ backgroundColor: '#fef9c3' }}>
+            <div className="flex-1 flex items-center gap-1.5 px-2.5 py-1.5 border-l border-gray-100/60" style={{ backgroundColor: '#fef9c3' }}>
               <span className="text-sm">🦕</span>
               <span className="font-bold text-[11px] text-amber-700">Anthony</span>
             </div>
           </div>
 
-          {/* Scrollable full-day grid — always 12 AM → 11:59 PM */}
-          <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden">
-            <div
-              className="relative"
-              style={{
-                display: 'grid',
-                gridTemplateColumns: `${TIME_AXIS_W}px 1fr 12px 1fr`,
-                height: TOTAL_H,
-              }}
-            >
+          {/* Scrollable time grid */}
+          <div className="flex-1 overflow-y-auto overflow-x-hidden">
+            <div className="relative" style={{ height: totalH }}>
+
+              {/* Subtle hour grid lines */}
+              {hours.map(h => (
+                <div
+                  key={h}
+                  className="absolute pointer-events-none border-t border-gray-100/50"
+                  style={{ top: (h * 60 - vsm) * PX_PER_MIN, left: TIME_AXIS_W, right: 0 }}
+                />
+              ))}
+
+              {/* Center divider */}
+              <div
+                className="absolute top-0 bottom-0 w-px bg-gray-100/80 pointer-events-none"
+                style={{ left: '50%' }}
+              />
+
+              {/* Now line */}
+              {showNowLine && (
+                <div
+                  className="absolute pointer-events-none z-30"
+                  style={{ top: nowTop, left: TIME_AXIS_W, right: 0 }}
+                >
+                  <div className="border-t-2 border-red-400/50 w-full" />
+                  <div className="absolute -top-1 left-0 w-2 h-2 bg-red-400/60 rounded-full" />
+                </div>
+              )}
+
               {/* Time axis */}
-              <div className="relative border-r border-gray-100/60">
-                {HOUR_MARKS.map(h => (
+              <div className="absolute left-0 inset-y-0 border-r border-gray-100/60" style={{ width: TIME_AXIS_W }}>
+                {hours.map(h => (
                   <div
                     key={h}
                     className="absolute right-1.5"
-                    style={{ top: h * 60 * PX_PER_MIN - 5 }}
+                    style={{ top: (h * 60 - vsm) * PX_PER_MIN - 5 }}
                   >
-                    <span className="text-[8px] text-gray-400 font-medium whitespace-nowrap">
-                      {hourLabel(h)}
-                    </span>
+                    <span className="text-[8px] text-gray-400 font-medium whitespace-nowrap">{hourLabel(h)}</span>
                   </div>
                 ))}
               </div>
 
               {/* Jeanette column */}
-              <div className="relative">
-                {HOUR_MARKS.map(h => (
-                  <div
-                    key={h}
-                    className="absolute left-0 right-0 border-t border-gray-100/40 pointer-events-none"
-                    style={{ top: h * 60 * PX_PER_MIN }}
-                  />
-                ))}
-                {date === todayStr && (
-                  <div
-                    className="absolute left-0 right-0 border-t-2 border-red-400/50 pointer-events-none z-30"
-                    style={{ top: nowLineY }}
-                  >
-                    <div className="absolute -top-1 -left-0.5 w-2 h-2 bg-red-400/60 rounded-full" />
-                  </div>
-                )}
+              <div className="absolute inset-y-0" style={{ left: TIME_AXIS_W, right: '50%', marginRight: 4 }}>
                 {jLayout.map(item => (
                   <EntryCard
                     key={item.entry.id}
@@ -406,34 +346,8 @@ export default function SplitTimeline({
                 ))}
               </div>
 
-              {/* Centre connector — bridge emoji for shared events */}
-              <div className="relative border-x border-gray-100/30">
-                {bridges.map((b, i) => (
-                  <div
-                    key={i}
-                    className="absolute inset-x-0 flex items-center justify-center pointer-events-none z-10"
-                    style={{ top: b.y - 7, height: 14 }}
-                  >
-                    <span className="text-[10px] leading-none">💚</span>
-                  </div>
-                ))}
-              </div>
-
               {/* Anthony column */}
-              <div className="relative">
-                {HOUR_MARKS.map(h => (
-                  <div
-                    key={h}
-                    className="absolute left-0 right-0 border-t border-gray-100/40 pointer-events-none"
-                    style={{ top: h * 60 * PX_PER_MIN }}
-                  />
-                ))}
-                {date === todayStr && (
-                  <div
-                    className="absolute left-0 right-0 border-t-2 border-red-400/50 pointer-events-none z-30"
-                    style={{ top: nowLineY }}
-                  />
-                )}
+              <div className="absolute inset-y-0" style={{ left: 'calc(50% + 4px)', right: 0 }}>
                 {aLayout.map(item => (
                   <EntryCard
                     key={item.entry.id}
@@ -444,6 +358,18 @@ export default function SplitTimeline({
                   />
                 ))}
               </div>
+
+              {/* Together bridge chips */}
+              {bridges.map((b, i) => (
+                <div
+                  key={i}
+                  className="absolute pointer-events-none z-20 flex items-center justify-center"
+                  style={{ top: b.y - 8, left: '50%', transform: 'translateX(-50%)', width: 18, height: 16 }}
+                >
+                  <span className="text-[10px] leading-none">💚</span>
+                </div>
+              ))}
+
             </div>
           </div>
         </>
