@@ -1,19 +1,22 @@
 'use client'
 
-import { useMemo, memo, useState, useEffect } from 'react'
+import { useMemo, memo, useState, useEffect, useRef } from 'react'
 import { ChevronLeft, ChevronRight, Pencil, Trash2 } from 'lucide-react'
 import { formatTime, formatDate, isSleepStatus } from '@/lib/utils'
 import { parseISO } from 'date-fns'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const PX_PER_MIN = 0.5   // 30 px / hr — soft time scale
+const PX_PER_MIN = 0.55     // 33 px/hr; full day ≈ 792 px
+const TOTAL_H = 1440 * PX_PER_MIN
 const TIME_AXIS_W = 32
-const CARD_GAP = 6
-const CARD_MIN_H = 68
-const CARD_MAX_H = 112
+const CARD_MIN_H = 62
+const CARD_MAX_H = 108
 const NOTE_LINE_H = 13
-const LONG_MIN = 180     // ≥ 3 h → compressed card
-const COMPRESSED_H = 50
+const LONG_MIN = 180        // ≥ 3 h → compressed card
+const COMPRESSED_H = 48
+
+// Hour markers: every 2 h (12a 2a 4a … 10p)
+const HOUR_MARKS = Array.from({ length: 12 }, (_, i) => i * 2)  // [0,2,4,...,22]
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type StatusEntry = {
@@ -32,10 +35,14 @@ type StatusEntry = {
 
 type LayoutItem = {
   entry: StatusEntry
-  top: number
-  height: number
+  top: number           // TIME-ACCURATE: displayStartMin * PX_PER_MIN
+  height: number        // readable, NOT proportional to duration
   isCompressed: boolean
   durationMin: number
+  displayStartMin: number   // clamped to [0, 1440] for cross-midnight entries
+  displayEndMin: number | null
+  lane: number          // 0 = full-width or left half; 1 = right half (overlap)
+  laneCount: number     // 1 = no overlap, 2 = two overlapping cards
 }
 
 type Props = {
@@ -57,37 +64,75 @@ function fmtDuration(mins: number) {
 }
 
 function hourLabel(h: number) {
-  if (h === 0 || h === 24) return '12a'
+  if (h === 0) return '12a'
   if (h === 12) return '12p'
   return h < 12 ? `${h}a` : `${h - 12}p`
 }
 
-function cardHeight(entry: StatusEntry, durMin: number): { height: number; isCompressed: boolean } {
+function getCardHeight(entry: StatusEntry, durMin: number): { height: number; isCompressed: boolean } {
   if (durMin > LONG_MIN) return { height: COMPRESSED_H, isCompressed: true }
-  const noteLines = entry.note ? Math.min(Math.ceil(entry.note.length / 26), 3) : 0
+  const noteLines = entry.note ? Math.min(Math.ceil(entry.note.length / 28), 3) : 0
   return { height: Math.min(CARD_MIN_H + noteLines * NOTE_LINE_H, CARD_MAX_H), isCompressed: false }
 }
 
-// Layout one column: soft time alignment + push-down collision avoidance.
-function layoutColumn(entries: StatusEntry[], vsm: number, now: Date): LayoutItem[] {
+// Layout a single column.
+// Card tops are TIME-ACCURATE (displayStartMin * PX_PER_MIN).
+// Visually overlapping cards (due to min-height) are split into two horizontal lanes.
+function layoutColumn(entries: StatusEntry[], viewDate: string, now: Date): LayoutItem[] {
+  const dayStart = new Date(viewDate + 'T00:00:00')
+  const dayEnd   = new Date(viewDate + 'T23:59:59.999')
+
   const sorted = [...entries].sort(
     (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
   )
-  const result: LayoutItem[] = []
-  let prevBottom = 0
+
+  const items: LayoutItem[] = []
 
   for (const entry of sorted) {
-    const startMin = minOfDay(new Date(entry.startTime))
-    const rawEnd = entry.endTime ? minOfDay(new Date(entry.endTime)) : minOfDay(now)
-    const endMin = rawEnd >= startMin ? rawEnd : startMin + 30
-    const durMin = endMin - startMin
-    const { height, isCompressed } = cardHeight(entry, durMin)
-    const idealTop = Math.max(0, (startMin - vsm) * PX_PER_MIN)
-    const top = Math.max(idealTop, prevBottom + (result.length > 0 ? CARD_GAP : 0))
-    result.push({ entry, top, height, isCompressed, durationMin: durMin })
-    prevBottom = top + height
+    const rawStartMs = new Date(entry.startTime).getTime()
+    const rawEndMs   = entry.endTime ? new Date(entry.endTime).getTime() : now.getTime()
+
+    // Clamp display range to this local day (handles cross-midnight entries)
+    const displayStartMs = Math.max(rawStartMs, dayStart.getTime())
+    const displayEndMs   = entry.endTime ? Math.min(rawEndMs, dayEnd.getTime()) : null
+
+    // Skip entries that don't fall within this day at all
+    if (displayStartMs > dayEnd.getTime()) continue
+    if (displayEndMs !== null && displayEndMs <= dayStart.getTime()) continue
+
+    const displayStartMin = minOfDay(new Date(displayStartMs))
+    const displayEndMin   = displayEndMs !== null ? minOfDay(new Date(displayEndMs)) : null
+
+    const rawEndMin = displayEndMin ?? minOfDay(now)
+    const durMin = Math.max(rawEndMin >= displayStartMin ? rawEndMin - displayStartMin : 0, 1)
+
+    const { height, isCompressed } = getCardHeight(entry, durMin)
+
+    items.push({
+      entry,
+      top: displayStartMin * PX_PER_MIN,  // ← time-accurate, never shifted
+      height,
+      isCompressed,
+      durationMin: durMin,
+      displayStartMin,
+      displayEndMin,
+      lane: 0,
+      laneCount: 1,
+    })
   }
-  return result
+
+  // Assign horizontal lanes for visually overlapping pairs.
+  // Two cards overlap when the later one's top < the earlier one's top + height.
+  // We cap at 2 lanes; a third simultaneous event falls into lane 1 (rare in practice).
+  for (let i = 0; i < items.length; i++) {
+    for (let j = i + 1; j < items.length; j++) {
+      if (items[j].top >= items[i].top + items[i].height) break  // sorted → done
+      items[i].lane = 0;  items[i].laneCount = 2
+      items[j].lane = 1;  items[j].laneCount = 2
+    }
+  }
+
+  return items
 }
 
 // ── EntryCard ─────────────────────────────────────────────────────────────────
@@ -99,20 +144,28 @@ const EntryCard = memo(function EntryCard({
   onEdit?: (e: StatusEntry) => void
   onDelete?: (id: string) => void
 }) {
-  const { entry, top, height, isCompressed, durationMin } = item
+  const { entry, top, height, isCompressed, durationMin, lane, laneCount } = item
   const isActive = !entry.endTime
+
+  // Lane 0 = full width (no overlap) or left ~65% (overlap)
+  // Lane 1 = right ~65% (shifted right)
+  const laneStyle: React.CSSProperties = laneCount === 1
+    ? { left: 2, right: 2 }
+    : lane === 0
+      ? { left: 2, right: '36%' }
+      : { left: '36%', right: 2 }
 
   return (
     <div
-      className={`group absolute left-1 right-1 rounded-xl overflow-hidden transition-shadow duration-150 ${
+      className={`group absolute rounded-xl overflow-hidden transition-shadow duration-150 ${
         isTogether
           ? 'ring-2 ring-green-300 shadow-[0_0_10px_rgba(134,239,172,0.55)]'
           : 'border border-white/50 shadow-sm hover:shadow-md'
       }`}
-      style={{ top, height, backgroundColor: entry.color }}
+      style={{ top, height, backgroundColor: entry.color, ...laneStyle }}
     >
       {(onEdit || onDelete) && (
-        <div className="absolute top-1 right-1 hidden group-hover:flex gap-0.5 bg-white/90 rounded-lg px-1 py-0.5 shadow z-10">
+        <div className="absolute top-0.5 right-0.5 hidden group-hover:flex gap-0.5 bg-white/90 rounded-lg px-1 py-0.5 shadow z-10">
           {onEdit && (
             <button onClick={e => { e.stopPropagation(); onEdit(entry) }}
               className="p-0.5 rounded hover:bg-violet-100 text-violet-400">
@@ -129,17 +182,17 @@ const EntryCard = memo(function EntryCard({
       )}
 
       {isActive && (
-        <span className="absolute top-1.5 right-5 w-1.5 h-1.5 bg-green-400 rounded-full border border-white animate-pulse z-10" />
+        <span className="absolute top-1 right-4 w-1.5 h-1.5 bg-green-400 rounded-full border border-white animate-pulse z-10" />
       )}
 
-      <div className="px-2 py-1.5 h-full flex flex-col overflow-hidden">
+      <div className="px-1.5 py-1 h-full flex flex-col overflow-hidden">
         <div className="flex items-center gap-1 min-w-0">
-          <span className="text-sm leading-none flex-shrink-0">{entry.emoji}</span>
-          <span className="font-bold text-[11px] text-gray-700 truncate flex-1">
+          <span className="text-[11px] leading-none flex-shrink-0">{entry.emoji}</span>
+          <span className="font-bold text-[10px] text-gray-700 truncate flex-1 leading-tight">
             {entry.status}{isCompressed && isSleepStatus(entry.status) ? ' 😴' : ''}
           </span>
           {isCompressed && (
-            <span className="text-[9px] text-gray-400 font-medium flex-shrink-0 ml-0.5">{fmtDuration(durationMin)}</span>
+            <span className="text-[9px] text-gray-400 font-medium flex-shrink-0">{fmtDuration(durationMin)}</span>
           )}
         </div>
 
@@ -150,7 +203,7 @@ const EntryCard = memo(function EntryCard({
               {isActive ? ' → Now' : entry.endTime ? ` – ${formatTime(entry.endTime)}` : ''}
             </p>
             {entry.note && (
-              <p className="text-[9px] text-gray-400 italic mt-0.5 line-clamp-3 leading-snug break-words">
+              <p className="text-[9px] text-gray-400 italic mt-0.5 line-clamp-2 leading-snug break-words">
                 {entry.note}
               </p>
             )}
@@ -167,41 +220,25 @@ const EntryCard = memo(function EntryCard({
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function SplitTimeline({ entries, date, onEdit, onDelete, onPrevDay, onNextDay }: Props) {
   const [now, setNow] = useState(() => new Date())
+  const scrollRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 60_000)
     return () => clearInterval(t)
   }, [])
 
   const dateLabel = useMemo(() => formatDate(parseISO(date)), [date])
-  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), [])
+  const todayStr  = useMemo(() => new Date().toISOString().slice(0, 10), [])
 
   const { jEntries, aEntries } = useMemo(() => ({
     jEntries: entries.filter(e => e.userId === 'jeanette'),
     aEntries: entries.filter(e => e.userId === 'anthony'),
   }), [entries])
 
-  // View range snapped to hour boundaries, padded 1 h each side
-  const { vsm, vem, hours } = useMemo(() => {
-    if (entries.length === 0) {
-      const hours = Array.from({ length: 15 }, (_, i) => i + 8)
-      return { vsm: 480, vem: 1320, hours }
-    }
-    const allMins = entries.flatMap(e => {
-      const s = minOfDay(new Date(e.startTime))
-      const rawE = e.endTime ? minOfDay(new Date(e.endTime)) : minOfDay(now)
-      return [s, rawE >= s ? rawE : s + 30]
-    })
-    const lo = Math.floor(Math.max(0, Math.min(...allMins) - 60) / 60) * 60
-    const hi = Math.min(Math.ceil((Math.max(...allMins) + 60) / 60) * 60, 1440)
-    const hours: number[] = []
-    for (let h = lo / 60; h <= hi / 60; h++) hours.push(h)
-    return { vsm: lo, vem: hi, hours }
-  }, [entries, now])
+  const jLayout = useMemo(() => layoutColumn(jEntries, date, now), [jEntries, date, now])
+  const aLayout = useMemo(() => layoutColumn(aEntries, date, now), [aEntries, date, now])
 
-  const jLayout = useMemo(() => layoutColumn(jEntries, vsm, now), [jEntries, vsm, now])
-  const aLayout = useMemo(() => layoutColumn(aEntries, vsm, now), [aEntries, vsm, now])
-
-  // Together highlights + bridge chips
+  // Together glow set + bridge chip positions
   const { togetherIds, bridges } = useMemo(() => {
     const togetherIds = new Set<string>()
     const bridges: { y: number }[] = []
@@ -216,20 +253,36 @@ export default function SplitTimeline({ entries, date, onEdit, onDelete, onPrevD
         if (Math.max(jS, aS) >= Math.min(jE, aE)) continue
         togetherIds.add(j.entry.id)
         togetherIds.add(a.entry.id)
-        bridges.push({ y: (j.top + j.height / 2 + a.top + a.height / 2) / 2 })
+        // Bridge y = midpoint of where the shared time range sits on the ruler
+        const overlapMidMin = (
+          Math.max(j.displayStartMin, a.displayStartMin) +
+          Math.min(
+            j.displayEndMin ?? minOfDay(now),
+            a.displayEndMin ?? minOfDay(now)
+          )
+        ) / 2
+        bridges.push({ y: overlapMidMin * PX_PER_MIN })
       }
     }
     return { togetherIds, bridges }
   }, [jLayout, aLayout, now])
 
-  const colTotalH = useMemo(() => {
-    const jBot = jLayout.at(-1) ? jLayout.at(-1)!.top + jLayout.at(-1)!.height : 0
-    const aBot = aLayout.at(-1) ? aLayout.at(-1)!.top + aLayout.at(-1)!.height : 0
-    return Math.max(jBot, aBot, (vem - vsm) * PX_PER_MIN) + 24
-  }, [jLayout, aLayout, vem, vsm])
+  // Auto-scroll: today → current time; past/future → first entry or 8 AM
+  useEffect(() => {
+    if (!scrollRef.current) return
+    let scrollTo: number
+    if (date === todayStr) {
+      scrollTo = Math.max(0, minOfDay(new Date()) * PX_PER_MIN - 100)
+    } else {
+      const allTops = [...jLayout, ...aLayout].map(l => l.top)
+      scrollTo = allTops.length > 0
+        ? Math.max(0, Math.min(...allTops) - 40)
+        : 8 * 60 * PX_PER_MIN   // 8 AM default
+    }
+    scrollRef.current.scrollTop = scrollTo
+  }, [date, todayStr])   // intentionally omit layout deps — only scroll on date change
 
-  const showNowLine = date === todayStr && minOfDay(now) >= vsm && minOfDay(now) <= vem
-  const nowLineY = (minOfDay(now) - vsm) * PX_PER_MIN
+  const nowLineY = minOfDay(now) * PX_PER_MIN
 
   return (
     <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-lg border border-white/60 overflow-hidden flex flex-col max-h-[80vh]">
@@ -239,7 +292,8 @@ export default function SplitTimeline({ entries, date, onEdit, onDelete, onPrevD
           <h2 className="text-lg font-bold text-violet-700">Our Timeline 🌸</h2>
           {(onPrevDay || onNextDay) && (
             <div className="flex gap-0.5">
-              <button onClick={onPrevDay} className="p-1.5 rounded-full hover:bg-violet-100 text-violet-500 transition-colors">
+              <button onClick={onPrevDay}
+                className="p-1.5 rounded-full hover:bg-violet-100 text-violet-500 transition-colors">
                 <ChevronLeft size={15} />
               </button>
               <button onClick={onNextDay} disabled={!onNextDay}
@@ -260,7 +314,7 @@ export default function SplitTimeline({ entries, date, onEdit, onDelete, onPrevD
         </div>
       ) : (
         <>
-          {/* Column headers — equal widths via CSS grid */}
+          {/* Column headers — equal 1fr widths via CSS grid */}
           <div
             className="flex-shrink-0 border-b border-gray-100"
             style={{ display: 'grid', gridTemplateColumns: `${TIME_AXIS_W}px 1fr 12px 1fr` }}
@@ -277,34 +331,40 @@ export default function SplitTimeline({ entries, date, onEdit, onDelete, onPrevD
             </div>
           </div>
 
-          {/* Scrollable time grid */}
-          <div className="flex-1 overflow-y-auto overflow-x-hidden">
+          {/* Scrollable full-day grid — always 12 AM → 11:59 PM */}
+          <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden">
             <div
               className="relative"
               style={{
                 display: 'grid',
                 gridTemplateColumns: `${TIME_AXIS_W}px 1fr 12px 1fr`,
-                height: colTotalH,
+                height: TOTAL_H,
               }}
             >
               {/* Time axis */}
               <div className="relative border-r border-gray-100/60">
-                {hours.map(h => (
-                  <div key={h} className="absolute right-1.5" style={{ top: (h * 60 - vsm) * PX_PER_MIN - 5 }}>
-                    <span className="text-[8px] text-gray-400 font-medium whitespace-nowrap">{hourLabel(h)}</span>
+                {HOUR_MARKS.map(h => (
+                  <div key={h} className="absolute right-1.5"
+                    style={{ top: h * 60 * PX_PER_MIN - 5 }}>
+                    <span className="text-[8px] text-gray-400 font-medium whitespace-nowrap">
+                      {hourLabel(h)}
+                    </span>
                   </div>
                 ))}
               </div>
 
               {/* Jeanette column */}
               <div className="relative">
-                {hours.map(h => (
+                {HOUR_MARKS.map(h => (
                   <div key={h} className="absolute left-0 right-0 border-t border-gray-100/40 pointer-events-none"
-                    style={{ top: (h * 60 - vsm) * PX_PER_MIN }} />
+                    style={{ top: h * 60 * PX_PER_MIN }} />
                 ))}
-                {showNowLine && (
-                  <div className="absolute left-0 right-0 border-t-2 border-red-400/40 pointer-events-none z-20"
-                    style={{ top: nowLineY }} />
+                {/* Current-time line */}
+                {date === todayStr && (
+                  <div className="absolute left-0 right-0 border-t-2 border-red-400/50 pointer-events-none z-20"
+                    style={{ top: nowLineY }}>
+                    <div className="absolute -top-1 -left-0.5 w-2 h-2 bg-red-400/60 rounded-full" />
+                  </div>
                 )}
                 {jLayout.map(item => (
                   <EntryCard key={item.entry.id} item={item}
@@ -315,7 +375,8 @@ export default function SplitTimeline({ entries, date, onEdit, onDelete, onPrevD
               {/* Centre connector column */}
               <div className="relative border-x border-gray-100/30">
                 {bridges.map((b, i) => (
-                  <div key={i} className="absolute inset-x-0 flex items-center justify-center pointer-events-none z-10"
+                  <div key={i}
+                    className="absolute inset-x-0 flex items-center justify-center pointer-events-none z-10"
                     style={{ top: b.y - 7, height: 14 }}>
                     <span className="text-[10px] leading-none">💚</span>
                   </div>
@@ -324,12 +385,12 @@ export default function SplitTimeline({ entries, date, onEdit, onDelete, onPrevD
 
               {/* Anthony column */}
               <div className="relative">
-                {hours.map(h => (
+                {HOUR_MARKS.map(h => (
                   <div key={h} className="absolute left-0 right-0 border-t border-gray-100/40 pointer-events-none"
-                    style={{ top: (h * 60 - vsm) * PX_PER_MIN }} />
+                    style={{ top: h * 60 * PX_PER_MIN }} />
                 ))}
-                {showNowLine && (
-                  <div className="absolute left-0 right-0 border-t-2 border-red-400/40 pointer-events-none z-20"
+                {date === todayStr && (
+                  <div className="absolute left-0 right-0 border-t-2 border-red-400/50 pointer-events-none z-20"
                     style={{ top: nowLineY }} />
                 )}
                 {aLayout.map(item => (
