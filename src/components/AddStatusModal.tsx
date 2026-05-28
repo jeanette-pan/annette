@@ -16,6 +16,7 @@ type StatusTemplate = {
   emoji: string
   color: string
   note?: string | null
+  isShared?: boolean
 }
 
 type Props = {
@@ -95,6 +96,14 @@ export default function AddStatusModal({
     setNote(tpl.note ?? '')
   }
 
+  const handleDeleteTemplate = useCallback(async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation()
+    try {
+      await fetch(`/api/templates/${id}`, { method: 'DELETE' })
+      setTemplates(prev => prev.filter(t => t.id !== id))
+    } catch { /* silent */ }
+  }, [])
+
   const handleSubmit = () => {
     if (!status.trim()) return
     onSubmit({
@@ -162,17 +171,25 @@ export default function AddStatusModal({
                     </Link>
                   </div>
                   {templates.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {templates.slice(0, 8).map((tpl) => (
-                        <button
+                    <div className="flex flex-wrap gap-2 max-h-28 overflow-y-auto pr-1">
+                      {templates.map((tpl) => (
+                        <div
                           key={tpl.id}
-                          onClick={() => applyTemplate(tpl)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-gray-700 border border-white/60 shadow-sm hover:shadow-md hover:scale-105 transition-all duration-150"
+                          className="group/tpl relative flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 rounded-full text-xs font-semibold text-gray-700 border border-white/60 shadow-sm hover:shadow-md transition-all duration-150 cursor-pointer"
                           style={{ backgroundColor: tpl.color }}
+                          onClick={() => applyTemplate(tpl)}
                         >
                           <span>{tpl.emoji}</span>
                           <span className="max-w-[80px] truncate">{tpl.name}</span>
-                        </button>
+                          {tpl.isShared && <span className="text-[9px] opacity-60">💚</span>}
+                          <button
+                            onClick={(e) => handleDeleteTemplate(e, tpl.id)}
+                            className="opacity-0 group-hover/tpl:opacity-100 ml-0.5 w-4 h-4 flex items-center justify-center rounded-full bg-black/10 hover:bg-red-200 text-gray-500 hover:text-red-600 transition-all flex-shrink-0"
+                            title="Delete template"
+                          >
+                            <X size={9} />
+                          </button>
+                        </div>
                       ))}
                     </div>
                   ) : (

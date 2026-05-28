@@ -10,7 +10,7 @@ export async function PUT(
   try {
     const { id } = params
     const body = await request.json()
-    const { name, status, emoji, color, note } = body
+    const { name, status, emoji, color, note, isShared } = body
 
     const template = await prisma.statusTemplate.update({
       where: { id },
@@ -20,6 +20,7 @@ export async function PUT(
         ...(emoji !== undefined && { emoji }),
         ...(color !== undefined && { color }),
         ...(note !== undefined && { note }),
+        ...(isShared !== undefined && { isShared }),
       },
     })
 
