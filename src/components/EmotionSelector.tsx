@@ -34,7 +34,7 @@ export default function EmotionSelector({ userId, currentEmotion, onChange }: Pr
       </p>
       <div className="flex items-end justify-between gap-1">
         {EMOTIONS.map(em => {
-          const isActive  = currentEmotion === em.id
+          const isActive   = currentEmotion === em.id
           const isSpinning = pending === em.id
           return (
             <button
@@ -45,27 +45,19 @@ export default function EmotionSelector({ userId, currentEmotion, onChange }: Pr
               className="flex flex-col items-center gap-1.5 flex-1 group"
             >
               <div
-                className="relative w-9 h-9 rounded-full flex items-center justify-center text-base transition-transform duration-200"
+                className="w-9 h-9 rounded-full transition-transform duration-200"
                 style={{
-                  backgroundColor: em.selectorBg,
+                  backgroundColor: em.circleColor,
                   transform: isSpinning ? 'scale(0.9)' : isActive ? 'scale(1.18)' : 'scale(1)',
                   boxShadow: isActive
-                    ? `0 0 0 2.5px white, 0 0 0 4px ${em.orbColor}, 0 0 16px ${em.glowColor}`
+                    ? `0 0 0 3px rgba(255,255,255,0.85), 0 0 16px ${em.glowColor}`
                     : undefined,
-                  opacity: pending && !isActive && !isSpinning ? 0.45 : 1,
+                  opacity: pending && !isActive && !isSpinning ? 0.4 : 1,
                 }}
-              >
-                {em.emoji}
-                {isActive && (
-                  <span
-                    className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white"
-                    style={{ backgroundColor: em.orbColor }}
-                  />
-                )}
-              </div>
+              />
               <span
                 className="text-[8px] font-semibold leading-none text-center whitespace-nowrap"
-                style={{ color: isActive ? em.orbColor : '#9ca3af' }}
+                style={{ color: isActive ? em.circleColor : '#9ca3af' }}
               >
                 {em.label}
               </span>

@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, memo } from 'react'
 import { Pencil, Trash2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { formatTime, formatDate, isSleepStatus } from '@/lib/utils'
 import { parseISO } from 'date-fns'
-import { getEmotion, getEmotionAtTime, type EmotionData } from '@/lib/emotionConfig'
+import { getEventEmotionSegments, buildEmotionGradient, type EmotionData, type EmotionSegment } from '@/lib/emotionConfig'
 
 type StatusEntry = {
   id: string
@@ -47,13 +47,13 @@ function fmtMs(ms: number) {
 }
 
 const EntryBlock = memo(function EntryBlock({
-  entry, top, height, isTogether, emotionId, onEdit, onDelete,
+  entry, top, height, isTogether, emotionSegments, onEdit, onDelete,
 }: {
   entry: StatusEntry
   top: number
   height: number
   isTogether: boolean
-  emotionId?: string | null
+  emotionSegments?: EmotionSegment[]
   onEdit?: (e: StatusEntry) => void
   onDelete?: (id: string) => void
 }) {
@@ -75,28 +75,48 @@ const EntryBlock = memo(function EntryBlock({
   )
   const detailLine = `${timeStr} · ${fmtMs(durMs)}`
 
-  const emotion = getEmotion(emotionId)
+  const nonNullSegs = emotionSegments?.filter(s => s.emotion !== null) ?? []
+  const hasEmotion = nonNullSegs.length > 0
+  const uniqueIds = new Set(nonNullSegs.map(s => s.emotion!.id))
+  const isMultiEmotion = uniqueIds.size > 1
+  const primaryEmotion = nonNullSegs[0]?.emotion ?? null
 
-  const sharedBorder = isTogether
-    ? 'border-l-[3px] border-green-400 shadow-[0_0_10px_rgba(134,239,172,0.45)] ring-1 ring-green-200/70'
+  // All shadows go in inline style to avoid conflicts with Tailwind shadow classes
+  let boxShadow: string | undefined
+  if (isTogether && hasEmotion && primaryEmotion) {
+    boxShadow = `0 0 10px rgba(134,239,172,0.45), 0 0 14px ${primaryEmotion.cardShadow}`
+  } else if (isTogether) {
+    boxShadow = '0 0 10px rgba(134,239,172,0.45)'
+  } else if (hasEmotion && primaryEmotion) {
+    boxShadow = `0 0 14px ${primaryEmotion.cardShadow}`
+  }
+
+  const borderClass = isTogether
+    ? 'border-l-[3px] border-green-400 ring-1 ring-green-200/70'
     : 'border border-white/70 shadow-sm'
 
+  const borderOverride = !isTogether && hasEmotion && primaryEmotion
+    ? { borderColor: primaryEmotion.cardBorder, borderWidth: '1.5px' }
+    : {}
+
+  const emotionOverlayStyle: React.CSSProperties | null = !hasEmotion ? null
+    : isMultiEmotion
+      ? { background: buildEmotionGradient(emotionSegments!) }
+      : { backgroundColor: primaryEmotion!.cardTint }
+
   if (isCompact) {
-    // Short card: swap title ↔ time details on hover (desktop) or tap (mobile).
-    // Card size and position never change.
     return (
       <div
         tabIndex={0}
-        className={`absolute left-0.5 right-0.5 rounded-xl overflow-hidden transition-shadow cursor-default select-none outline-none ${sharedBorder}`}
-        style={{ top, height: px, backgroundColor: entry.color, zIndex: 5 }}
+        className={`absolute left-0.5 right-0.5 rounded-xl overflow-hidden cursor-default select-none outline-none ${borderClass}`}
+        style={{ top, height: px, backgroundColor: entry.color, zIndex: 5, boxShadow, ...borderOverride }}
         onMouseEnter={() => setShowDetails(true)}
         onMouseLeave={() => setShowDetails(false)}
         onClick={(e) => { e.stopPropagation(); setShowDetails(prev => !prev) }}
         onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setShowDetails(false) }}
       >
-        {/* Emotion atmosphere tint — visual only, pointer-events:none */}
-        {emotion && (
-          <div className="absolute inset-0 rounded-xl pointer-events-none" style={{ backgroundColor: emotion.tintColor }} />
+        {emotionOverlayStyle && (
+          <div className="absolute inset-0 rounded-xl pointer-events-none" style={emotionOverlayStyle} />
         )}
         {isActive && (
           <span className="absolute top-1 right-1.5 w-1 h-1 bg-green-400 rounded-full border border-white animate-pulse z-10" />
@@ -127,14 +147,6 @@ const EntryBlock = memo(function EntryBlock({
             <span className="text-[9px] text-gray-600 font-medium truncate leading-tight w-full">{detailLine}</span>
           )}
         </div>
-        {/* Emotion orb — bottom-right corner, purely decorative */}
-        {emotion && (
-          <div
-            aria-hidden
-            className="absolute bottom-1 right-1 w-2 h-2 rounded-full pointer-events-none z-10"
-            style={{ backgroundColor: emotion.orbColor, boxShadow: `0 0 4px ${emotion.glowColor}` }}
-          />
-        )}
       </div>
     )
   }
@@ -142,12 +154,11 @@ const EntryBlock = memo(function EntryBlock({
   // Normal card: always shows title + time row; edit/delete appear on hover.
   return (
     <div
-      className={`group absolute left-0.5 right-0.5 rounded-xl overflow-hidden transition-shadow ${sharedBorder}`}
-      style={{ top, height: px, backgroundColor: entry.color, zIndex: 2 }}
+      className={`group absolute left-0.5 right-0.5 rounded-xl overflow-hidden ${borderClass}`}
+      style={{ top, height: px, backgroundColor: entry.color, zIndex: 2, boxShadow, ...borderOverride }}
     >
-      {/* Emotion atmosphere tint */}
-      {emotion && (
-        <div className="absolute inset-0 rounded-xl pointer-events-none" style={{ backgroundColor: emotion.tintColor }} />
+      {emotionOverlayStyle && (
+        <div className="absolute inset-0 rounded-xl pointer-events-none" style={emotionOverlayStyle} />
       )}
       {isActive && (
         <span className="absolute top-1.5 right-5 w-1.5 h-1.5 bg-green-400 rounded-full border border-white animate-pulse z-10" />
@@ -183,14 +194,6 @@ const EntryBlock = memo(function EntryBlock({
           <p className="text-[9px] text-gray-400 italic mt-0.5 line-clamp-4 break-words leading-snug">{entry.note}</p>
         )}
       </div>
-      {/* Emotion orb — bottom-right corner */}
-      {emotion && (
-        <div
-          aria-hidden
-          className="absolute bottom-1.5 right-1.5 w-2 h-2 rounded-full pointer-events-none z-10"
-          style={{ backgroundColor: emotion.orbColor, boxShadow: `0 0 5px ${emotion.glowColor}` }}
-        />
-      )}
     </div>
   )
 })
@@ -267,7 +270,8 @@ export default function SplitTimeline({ entries, date, jEmotions = [], aEmotions
     const s = minOfDay(new Date(entry.startTime))
     const rawE = entry.endTime ? minOfDay(new Date(entry.endTime)) : minOfDay(now)
     const e = rawE >= s ? rawE : 1440
-    const emotion = getEmotionAtTime(emotions, new Date(entry.startTime))
+    const entryEnd = entry.endTime ? new Date(entry.endTime) : now
+    const emotionSegments = getEventEmotionSegments(emotions, new Date(entry.startTime), entryEnd)
     return (
       <EntryBlock
         key={entry.id}
@@ -275,7 +279,7 @@ export default function SplitTimeline({ entries, date, jEmotions = [], aEmotions
         top={(s - vsm) * PX_PER_MIN}
         height={(e - s) * PX_PER_MIN}
         isTogether={(overlapMap.get(entry.id) ?? 0) > 0}
-        emotionId={emotion?.id ?? null}
+        emotionSegments={emotionSegments}
         onEdit={onEdit}
         onDelete={onDelete}
       />

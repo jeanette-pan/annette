@@ -804,7 +804,7 @@ export default function StatsView() {
                     <div className="flex flex-wrap gap-x-3 gap-y-1.5">
                       {segs.map((seg, i) => (
                         <div key={i} className="flex items-center gap-1">
-                          <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: seg.emotion.orbColor }} />
+                          <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: seg.emotion.circleColor }} />
                           <span className="text-[10px] text-gray-500">{seg.emotion.emoji} {seg.emotion.label} · {formatMins(seg.endMin - seg.startMin)}</span>
                         </div>
                       ))}
@@ -888,7 +888,7 @@ export default function StatsView() {
                 <div className="flex flex-wrap gap-x-3 gap-y-1.5 mt-4 pt-3 border-t border-gray-100">
                   {EMOTIONS.map(em => (
                     <div key={em.id} className="flex items-center gap-1">
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: em.orbColor }} />
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: em.circleColor }} />
                       <span className="text-[9px] text-gray-400">{em.emoji} {em.label}</span>
                     </div>
                   ))}
