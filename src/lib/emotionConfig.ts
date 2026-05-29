@@ -206,6 +206,21 @@ export function buildEmotionGradient(segs: EmotionSegment[]): string {
   return `linear-gradient(to bottom, ${stops.join(', ')})`
 }
 
+// Build a CSS linear-gradient for the thin left accent line on timeline cards.
+// Uses solid circleColor with hard stops — transparent for null (no emotion) slices.
+export function buildAccentLineGradient(segs: EmotionSegment[]): string {
+  const stops: string[] = []
+  let pos = 0
+  for (const seg of segs) {
+    const c = seg.emotion?.circleColor ?? 'transparent'
+    const from = (pos * 100).toFixed(1)
+    pos += seg.fraction
+    const to = (pos * 100).toFixed(1)
+    stops.push(`${c} ${from}%`, `${c} ${to}%`)
+  }
+  return `linear-gradient(to bottom, ${stops.join(', ')})`
+}
+
 // Compute day-level emotion segments for the stats day strip.
 export function computeDaySegments(
   entries: EmotionData[],

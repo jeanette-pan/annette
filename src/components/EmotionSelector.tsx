@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import { motion } from 'framer-motion'
 import { EMOTIONS, type EmotionId } from '@/lib/emotionConfig'
 
 type Props = {
@@ -43,17 +44,24 @@ export default function EmotionSelector({ userId, currentEmotion, onChange }: Pr
               onClick={() => select(em.id)}
               title={isActive ? `${em.label} (tap to clear)` : em.label}
               disabled={!!pending}
-              className="flex flex-col items-center gap-1.5 flex-1 group"
+              className="flex flex-col items-center gap-1.5 flex-1"
             >
-              <div
-                className="w-9 h-9 rounded-full transition-transform duration-200"
+              <motion.div
+                className="w-9 h-9 rounded-full"
+                animate={{
+                  scale: isSpinning ? 0.85 : isActive ? [1.18, 1.24, 1.18] : 1,
+                  opacity: pending && !isActive && !isSpinning ? 0.4 : 1,
+                }}
+                transition={
+                  isActive
+                    ? { scale: { duration: 2.2, repeat: Infinity, ease: 'easeInOut' }, opacity: { duration: 0.15 } }
+                    : { duration: 0.18, ease: 'easeOut' }
+                }
                 style={{
                   background: `linear-gradient(135deg, ${em.gradientFrom}, ${em.gradientTo})`,
-                  transform: isSpinning ? 'scale(0.88)' : isActive ? 'scale(1.18)' : 'scale(1)',
                   boxShadow: isActive
-                    ? `0 0 0 2.5px rgba(255,255,255,0.9), 0 0 18px ${em.glowColor}`
+                    ? `0 0 0 2px rgba(255,255,255,0.95), 0 0 0 4.5px ${em.circleColor}, 0 0 20px ${em.glowColor}`
                     : undefined,
-                  opacity: pending && !isActive && !isSpinning ? 0.4 : 1,
                 }}
               />
               <span

@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, memo } from 'react'
 import { Pencil, Trash2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { formatTime, formatDate, isSleepStatus } from '@/lib/utils'
 import { parseISO } from 'date-fns'
-import { getEventEmotionSegments, buildEmotionGradient, type EmotionData, type EmotionSegment } from '@/lib/emotionConfig'
+import { getEventEmotionSegments, buildAccentLineGradient, type EmotionData, type EmotionSegment } from '@/lib/emotionConfig'
 
 type StatusEntry = {
   id: string
@@ -81,24 +81,19 @@ const EntryBlock = memo(function EntryBlock({
   const isMultiEmotion = uniqueIds.size > 1
   const primaryEmotion = nonNullSegs[0]?.emotion ?? null
 
-  // All shadows go in inline style to avoid conflicts with Tailwind shadow classes
-  let boxShadow: string | undefined
-  if (isTogether && hasEmotion && primaryEmotion) {
-    boxShadow = `0 0 10px rgba(134,239,172,0.45), 0 0 14px ${primaryEmotion.cardShadow}`
-  } else if (isTogether) {
-    boxShadow = '0 0 10px rgba(134,239,172,0.45)'
-  } else if (hasEmotion && primaryEmotion) {
-    boxShadow = `0 0 14px ${primaryEmotion.cardShadow}`
-  }
+  // Together events get a green glow; emotion is handled by the accent line, not shadows
+  const boxShadow = isTogether ? '0 0 10px rgba(134,239,172,0.45)' : undefined
 
   const borderClass = isTogether
     ? 'border-l-[3px] border-green-400 ring-1 ring-green-200/70'
     : 'border border-white/70 shadow-sm'
 
-  const emotionOverlayStyle: React.CSSProperties | null = !hasEmotion ? null
-    : isMultiEmotion
-      ? { background: buildEmotionGradient(emotionSegments!) }
-      : { backgroundColor: primaryEmotion!.cardTint }
+  // Thin left accent line: solid color for single emotion, gradient for multi-emotion
+  const accentLineStyle: React.CSSProperties | null = !hasEmotion ? null : {
+    background: isMultiEmotion
+      ? buildAccentLineGradient(emotionSegments!)
+      : primaryEmotion!.circleColor,
+  }
 
   if (isCompact) {
     return (
@@ -111,8 +106,9 @@ const EntryBlock = memo(function EntryBlock({
         onClick={(e) => { e.stopPropagation(); setShowDetails(prev => !prev) }}
         onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setShowDetails(false) }}
       >
-        {emotionOverlayStyle && (
-          <div className="absolute inset-0 rounded-xl pointer-events-none" style={emotionOverlayStyle} />
+        {/* Emotion accent line — thin strip on the left edge */}
+        {accentLineStyle && (
+          <div className="absolute left-0 top-0 bottom-0 pointer-events-none z-10" style={{ width: 5, ...accentLineStyle }} />
         )}
         {isActive && (
           <span className="absolute top-1 right-1.5 w-1 h-1 bg-green-400 rounded-full border border-white animate-pulse z-10" />
@@ -133,7 +129,7 @@ const EntryBlock = memo(function EntryBlock({
           </div>
         )}
 
-        <div className="px-1.5 h-full flex items-center overflow-hidden">
+        <div className="pl-3 pr-1.5 h-full flex items-center overflow-hidden">
           {!showDetails ? (
             <div className="flex items-center gap-0.5 min-w-0 w-full">
               <span className="text-[11px] leading-none flex-shrink-0">{entry.emoji}</span>
@@ -153,8 +149,9 @@ const EntryBlock = memo(function EntryBlock({
       className={`group absolute left-0.5 right-0.5 rounded-xl overflow-hidden ${borderClass}`}
       style={{ top, height: px, backgroundColor: entry.color, zIndex: 2, boxShadow }}
     >
-      {emotionOverlayStyle && (
-        <div className="absolute inset-0 rounded-xl pointer-events-none" style={emotionOverlayStyle} />
+      {/* Emotion accent line — thin strip on the left edge */}
+      {accentLineStyle && (
+        <div className="absolute left-0 top-0 bottom-0 pointer-events-none z-10" style={{ width: 5, ...accentLineStyle }} />
       )}
       {isActive && (
         <span className="absolute top-1.5 right-5 w-1.5 h-1.5 bg-green-400 rounded-full border border-white animate-pulse z-10" />
@@ -175,7 +172,7 @@ const EntryBlock = memo(function EntryBlock({
         </div>
       )}
 
-      <div className="px-1.5 py-1 h-full flex flex-col overflow-hidden">
+      <div className="pl-3 pr-1.5 py-1 h-full flex flex-col overflow-hidden">
         <div className="flex items-center gap-0.5 min-w-0">
           <span className="text-xs leading-none flex-shrink-0">{entry.emoji}</span>
           <span className="font-bold text-[10px] text-gray-700 truncate leading-tight">
