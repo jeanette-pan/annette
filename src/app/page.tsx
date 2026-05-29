@@ -54,6 +54,23 @@ export default function HomePage() {
   const [emotionEntries, setEmotionEntries] = useState<{ jeanette: EmotionData[]; anthony: EmotionData[] }>(
     { jeanette: [], anthony: [] }
   )
+  // Current emotion for both users (for the status card orbs)
+  const [emotionCurrents, setEmotionCurrents] = useState<{ jeanette: string | null; anthony: string | null }>(
+    { jeanette: null, anthony: null }
+  )
+
+  // Fetch both users' current emotions once on mount for the status card orbs
+  const fetchCurrentEmotions = useCallback(async () => {
+    try {
+      const [j, a] = await Promise.all([
+        fetch('/api/emotions/current?userId=jeanette').then(r => r.json()),
+        fetch('/api/emotions/current?userId=anthony').then(r => r.json()),
+      ])
+      setEmotionCurrents({ jeanette: j.emotion || null, anthony: a.emotion || null })
+    } catch { /* silent */ }
+  }, [])
+
+  useEffect(() => { fetchCurrentEmotions() }, [fetchCurrentEmotions])
 
   // Fetch current emotion when user identity changes
   useEffect(() => {
@@ -83,8 +100,11 @@ export default function HomePage() {
 
   const handleEmotionChange = useCallback((id: EmotionId | null) => {
     setCurrentEmotion(id)
+    if (currentUser) {
+      setEmotionCurrents(prev => ({ ...prev, [currentUser.userId]: id }))
+    }
     setTimeout(() => fetchEmotionHistory(timelineDate), 150)
-  }, [timelineDate, fetchEmotionHistory])
+  }, [timelineDate, fetchEmotionHistory, currentUser])
   // ──────────────────────────────────────────────────────────────────────────
 
   const fetchCurrentStatus = useCallback(async () => {
@@ -272,12 +292,14 @@ export default function HomePage() {
                   userName="Jeanette"
                   entry={currentEntries.jeanette}
                   isMe={currentUser?.userId === 'jeanette'}
+                  currentEmotionId={emotionCurrents.jeanette}
                 />
                 <CurrentStatusCard
                   userId="anthony"
                   userName="Anthony"
                   entry={currentEntries.anthony}
                   isMe={currentUser?.userId === 'anthony'}
+                  currentEmotionId={emotionCurrents.anthony}
                 />
               </div>
             </section>

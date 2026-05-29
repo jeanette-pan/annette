@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, memo } from 'react'
 import { Pencil, Trash2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { formatTime, formatDate, isSleepStatus } from '@/lib/utils'
 import { parseISO } from 'date-fns'
-import { getEventEmotionSegments, buildAccentLineGradient, type EmotionData, type EmotionSegment } from '@/lib/emotionConfig'
+import { getEventEmotionSegments, getEmotionAtTime, buildAccentLineGradient, type EmotionData, type EmotionSegment } from '@/lib/emotionConfig'
 
 type StatusEntry = {
   id: string
@@ -47,13 +47,15 @@ function fmtMs(ms: number) {
 }
 
 const EntryBlock = memo(function EntryBlock({
-  entry, top, height, isTogether, emotionSegments, onEdit, onDelete,
+  entry, top, height, isTogether, emotionsAlign, emotionSegments, railSide, onEdit, onDelete,
 }: {
   entry: StatusEntry
   top: number
   height: number
   isTogether: boolean
+  emotionsAlign?: boolean
   emotionSegments?: EmotionSegment[]
+  railSide?: 'left' | 'right'
   onEdit?: (e: StatusEntry) => void
   onDelete?: (id: string) => void
 }) {
@@ -81,19 +83,25 @@ const EntryBlock = memo(function EntryBlock({
   const isMultiEmotion = uniqueIds.size > 1
   const primaryEmotion = nonNullSegs[0]?.emotion ?? null
 
-  // Together events get a green glow; emotion is handled by the accent line, not shadows
-  const boxShadow = isTogether ? '0 0 10px rgba(134,239,172,0.45)' : undefined
+  // Together glow: soft multi-layer, no harsh border; emotionally aligned moments glow warmer
+  let boxShadow: string | undefined
+  if (isTogether && emotionsAlign) {
+    boxShadow = '0 0 10px rgba(134,239,172,0.65), 0 0 22px rgba(134,239,172,0.42), 0 0 40px rgba(134,239,172,0.22)'
+  } else if (isTogether) {
+    boxShadow = '0 0 8px rgba(134,239,172,0.55), 0 0 18px rgba(134,239,172,0.30), 0 0 32px rgba(134,239,172,0.14)'
+  }
 
-  const borderClass = isTogether
-    ? 'border-l-[3px] border-green-400 ring-1 ring-green-200/70'
-    : 'border border-white/70 shadow-sm'
+  // All cards share the same neutral border — together state uses glow, not a border
+  const borderClass = 'border border-white/70 shadow-sm'
 
-  // Thin left accent line: solid color for single emotion, gradient for multi-emotion
+  // Thin accent line: right side for Jeanette, left side for Anthony
   const accentLineStyle: React.CSSProperties | null = !hasEmotion ? null : {
     background: isMultiEmotion
       ? buildAccentLineGradient(emotionSegments!)
       : primaryEmotion!.circleColor,
   }
+  const accentSide = railSide === 'right' ? 'right-0' : 'left-0'
+  const contentPad = railSide === 'right' ? 'pl-1.5 pr-3' : 'pl-3 pr-1.5'
 
   if (isCompact) {
     return (
@@ -106,16 +114,16 @@ const EntryBlock = memo(function EntryBlock({
         onClick={(e) => { e.stopPropagation(); setShowDetails(prev => !prev) }}
         onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setShowDetails(false) }}
       >
-        {/* Emotion accent line — thin strip on the left edge */}
+        {/* Emotion accent line — thin strip on the configured edge */}
         {accentLineStyle && (
-          <div className="absolute left-0 top-0 bottom-0 pointer-events-none z-10" style={{ width: 5, ...accentLineStyle }} />
+          <div className={`absolute top-0 bottom-0 pointer-events-none z-10 ${accentSide}`} style={{ width: 5, ...accentLineStyle }} />
         )}
         {isActive && (
-          <span className="absolute top-1 right-1.5 w-1 h-1 bg-green-400 rounded-full border border-white animate-pulse z-10" />
+          <span className="absolute top-1 right-1.5 w-1 h-1 bg-green-400 rounded-full border border-white animate-pulse z-20" />
         )}
 
         {showDetails && (onEdit || onDelete) && (
-          <div className="absolute top-0.5 right-0.5 flex gap-0.5 bg-white/95 rounded-lg px-1 py-0.5 shadow z-20">
+          <div className="absolute top-0.5 right-0.5 flex gap-0.5 bg-white/95 rounded-lg px-1 py-0.5 shadow z-30">
             {onEdit && (
               <button onClick={e => { e.stopPropagation(); onEdit(entry) }} className="p-0.5 rounded hover:bg-violet-100 text-violet-400">
                 <Pencil size={9} />
@@ -129,7 +137,7 @@ const EntryBlock = memo(function EntryBlock({
           </div>
         )}
 
-        <div className="pl-3 pr-1.5 h-full flex items-center overflow-hidden">
+        <div className={`${contentPad} h-full flex items-center overflow-hidden`}>
           {!showDetails ? (
             <div className="flex items-center gap-0.5 min-w-0 w-full">
               <span className="text-[11px] leading-none flex-shrink-0">{entry.emoji}</span>
@@ -149,16 +157,16 @@ const EntryBlock = memo(function EntryBlock({
       className={`group absolute left-0.5 right-0.5 rounded-xl overflow-hidden ${borderClass}`}
       style={{ top, height: px, backgroundColor: entry.color, zIndex: 2, boxShadow }}
     >
-      {/* Emotion accent line — thin strip on the left edge */}
+      {/* Emotion accent line — thin strip on the configured edge */}
       {accentLineStyle && (
-        <div className="absolute left-0 top-0 bottom-0 pointer-events-none z-10" style={{ width: 5, ...accentLineStyle }} />
+        <div className={`absolute top-0 bottom-0 pointer-events-none z-10 ${accentSide}`} style={{ width: 5, ...accentLineStyle }} />
       )}
       {isActive && (
-        <span className="absolute top-1.5 right-5 w-1.5 h-1.5 bg-green-400 rounded-full border border-white animate-pulse z-10" />
+        <span className="absolute top-1.5 right-5 w-1.5 h-1.5 bg-green-400 rounded-full border border-white animate-pulse z-20" />
       )}
 
       {(onEdit || onDelete) && (
-        <div className="absolute top-0.5 right-0.5 hidden group-hover:flex gap-0.5 bg-white/95 rounded-lg px-1 py-0.5 shadow z-20">
+        <div className="absolute top-0.5 right-0.5 hidden group-hover:flex gap-0.5 bg-white/95 rounded-lg px-1 py-0.5 shadow z-30">
           {onEdit && (
             <button onClick={e => { e.stopPropagation(); onEdit(entry) }} className="p-0.5 rounded hover:bg-violet-100 text-violet-400">
               <Pencil size={9} />
@@ -172,7 +180,7 @@ const EntryBlock = memo(function EntryBlock({
         </div>
       )}
 
-      <div className="pl-3 pr-1.5 py-1 h-full flex flex-col overflow-hidden">
+      <div className={`${contentPad} py-1 h-full flex flex-col overflow-hidden`}>
         <div className="flex items-center gap-0.5 min-w-0">
           <span className="text-xs leading-none flex-shrink-0">{entry.emoji}</span>
           <span className="font-bold text-[10px] text-gray-700 truncate leading-tight">
@@ -181,7 +189,7 @@ const EntryBlock = memo(function EntryBlock({
         </div>
         <p className="text-[9px] text-gray-500 mt-0.5 leading-tight whitespace-nowrap">{timeStr}</p>
         {isTogether && (
-          <span className="text-[8px] text-green-700 font-bold mt-0.5 leading-tight">💚 Together</span>
+          <span className="text-[9px] mt-0.5 leading-tight select-none">🐧 💚 🦕</span>
         )}
         {entry.note && (
           <p className="text-[9px] text-gray-400 italic mt-0.5 line-clamp-4 break-words leading-snug">{entry.note}</p>
@@ -279,18 +287,38 @@ export default function SplitTimeline({ entries, date, jEmotions = [], aEmotions
   const nowTop = (minOfDay(now) - vsm) * PX_PER_MIN
   const showNowLine = date === todayStr && minOfDay(now) >= vsm && minOfDay(now) <= vem
 
-  const renderCol = (list: StatusEntry[], emotionSegs: Map<string, EmotionSegment[]>) => list.map(entry => {
+  const renderCol = (
+    list: StatusEntry[],
+    emotionSegs: Map<string, EmotionSegment[]>,
+    otherEmotions: EmotionData[],
+    railSide: 'left' | 'right',
+  ) => list.map(entry => {
     const s = minOfDay(new Date(entry.startTime))
     const rawE = entry.endTime ? minOfDay(new Date(entry.endTime)) : minOfDay(now)
     const e = rawE >= s ? rawE : 1440
+    const isTogether = (overlapMap.get(entry.id) ?? 0) > 0
+    const segs = emotionSegs.get(entry.id) ?? []
+
+    // Subtle glow boost when both people share the same emotion during a together moment
+    let emotionsAlign = false
+    if (isTogether) {
+      const myEmotion = segs.find(s => s.emotion !== null)?.emotion ?? null
+      if (myEmotion) {
+        const otherEmotion = getEmotionAtTime(otherEmotions, new Date(entry.startTime))
+        emotionsAlign = otherEmotion?.id === myEmotion.id
+      }
+    }
+
     return (
       <EntryBlock
         key={entry.id}
         entry={entry}
         top={(s - vsm) * PX_PER_MIN}
         height={(e - s) * PX_PER_MIN}
-        isTogether={(overlapMap.get(entry.id) ?? 0) > 0}
-        emotionSegments={emotionSegs.get(entry.id) ?? []}
+        isTogether={isTogether}
+        emotionsAlign={emotionsAlign}
+        emotionSegments={segs}
+        railSide={railSide}
         onEdit={onEdit}
         onDelete={onDelete}
       />
@@ -358,7 +386,7 @@ export default function SplitTimeline({ entries, date, jEmotions = [], aEmotions
                   <div key={h} className="absolute left-0 right-0 border-t border-gray-100/50" style={{ top: (h * 60 - vsm) * PX_PER_MIN }} />
                 ))}
                 {showNowLine && <div className="absolute left-0 right-0 border-t-2 border-red-400/40 z-10" style={{ top: nowTop }} />}
-                {renderCol(jEntries, jEmotionSegs)}
+                {renderCol(jEntries, jEmotionSegs, aEmotions, 'right')}
               </div>
 
               {/* Together connector column */}
@@ -387,7 +415,7 @@ export default function SplitTimeline({ entries, date, jEmotions = [], aEmotions
                   <div key={h} className="absolute left-0 right-0 border-t border-gray-100/50" style={{ top: (h * 60 - vsm) * PX_PER_MIN }} />
                 ))}
                 {showNowLine && <div className="absolute left-0 right-0 border-t-2 border-red-400/40 z-10" style={{ top: nowTop }} />}
-                {renderCol(aEntries, aEmotionSegs)}
+                {renderCol(aEntries, aEmotionSegs, jEmotions, 'left')}
               </div>
 
             </div>

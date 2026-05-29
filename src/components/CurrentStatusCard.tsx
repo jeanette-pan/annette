@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { getUserConfig } from '@/lib/statusConfig'
 import { formatTime, formatDurationFromDates, isSleepStatus } from '@/lib/utils'
+import { getEmotion } from '@/lib/emotionConfig'
 
 type StatusEntry = {
   id: string
@@ -23,9 +24,10 @@ type Props = {
   userName: string
   entry: StatusEntry | null
   isMe: boolean
+  currentEmotionId?: string | null
 }
 
-export default function CurrentStatusCard({ userId, userName, entry, isMe }: Props) {
+export default function CurrentStatusCard({ userId, userName, entry, isMe, currentEmotionId }: Props) {
   const userConfig = getUserConfig(userId)
   const cardColor = entry?.color ?? userConfig.themeHex
   const [duration, setDuration] = useState<string>('')
@@ -108,9 +110,23 @@ export default function CurrentStatusCard({ userId, userName, entry, isMe }: Pro
             &ldquo;{entry.note}&rdquo;
           </p>
         )}
-
-
       </div>
+
+      {/* Current emotion orb — bottom-left, color only, no text */}
+      {(() => {
+        const em = getEmotion(currentEmotionId)
+        if (!em) return null
+        return (
+          <div
+            aria-hidden
+            className="absolute bottom-3 left-3 w-3 h-3 rounded-full pointer-events-none"
+            style={{
+              background: `linear-gradient(135deg, ${em.gradientFrom}, ${em.gradientTo})`,
+              boxShadow: `0 0 7px ${em.glowColor}`,
+            }}
+          />
+        )
+      })()}
     </motion.div>
   )
 }
