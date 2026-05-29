@@ -6,22 +6,23 @@ import { EMOTIONS, type EmotionId } from '@/lib/emotionConfig'
 type Props = {
   userId: string
   currentEmotion: string | null
-  onChange: (emotionId: EmotionId) => void
+  onChange: (emotionId: EmotionId | null) => void
 }
 
 export default function EmotionSelector({ userId, currentEmotion, onChange }: Props) {
   const [pending, setPending] = useState<string | null>(null)
 
   const select = useCallback(async (id: EmotionId) => {
-    if (pending || id === currentEmotion) return
+    if (pending) return
+    const isDeselect = id === currentEmotion
     setPending(id)
     try {
       await fetch('/api/emotions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, emotion: id }),
+        body: JSON.stringify({ userId, emotion: isDeselect ? '' : id }),
       })
-      onChange(id)
+      onChange(isDeselect ? null : id)
     } catch { /* silent */ } finally {
       setPending(null)
     }
@@ -40,17 +41,17 @@ export default function EmotionSelector({ userId, currentEmotion, onChange }: Pr
             <button
               key={em.id}
               onClick={() => select(em.id)}
-              title={em.label}
+              title={isActive ? `${em.label} (tap to clear)` : em.label}
               disabled={!!pending}
               className="flex flex-col items-center gap-1.5 flex-1 group"
             >
               <div
                 className="w-9 h-9 rounded-full transition-transform duration-200"
                 style={{
-                  backgroundColor: em.circleColor,
-                  transform: isSpinning ? 'scale(0.9)' : isActive ? 'scale(1.18)' : 'scale(1)',
+                  background: `linear-gradient(135deg, ${em.gradientFrom}, ${em.gradientTo})`,
+                  transform: isSpinning ? 'scale(0.88)' : isActive ? 'scale(1.18)' : 'scale(1)',
                   boxShadow: isActive
-                    ? `0 0 0 3px rgba(255,255,255,0.85), 0 0 16px ${em.glowColor}`
+                    ? `0 0 0 2.5px rgba(255,255,255,0.9), 0 0 18px ${em.glowColor}`
                     : undefined,
                   opacity: pending && !isActive && !isSpinning ? 0.4 : 1,
                 }}

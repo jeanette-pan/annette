@@ -95,10 +95,6 @@ const EntryBlock = memo(function EntryBlock({
     ? 'border-l-[3px] border-green-400 ring-1 ring-green-200/70'
     : 'border border-white/70 shadow-sm'
 
-  const borderOverride = !isTogether && hasEmotion && primaryEmotion
-    ? { borderColor: primaryEmotion.cardBorder, borderWidth: '1.5px' }
-    : {}
-
   const emotionOverlayStyle: React.CSSProperties | null = !hasEmotion ? null
     : isMultiEmotion
       ? { background: buildEmotionGradient(emotionSegments!) }
@@ -109,7 +105,7 @@ const EntryBlock = memo(function EntryBlock({
       <div
         tabIndex={0}
         className={`absolute left-0.5 right-0.5 rounded-xl overflow-hidden cursor-default select-none outline-none ${borderClass}`}
-        style={{ top, height: px, backgroundColor: entry.color, zIndex: 5, boxShadow, ...borderOverride }}
+        style={{ top, height: px, backgroundColor: entry.color, zIndex: 5, boxShadow }}
         onMouseEnter={() => setShowDetails(true)}
         onMouseLeave={() => setShowDetails(false)}
         onClick={(e) => { e.stopPropagation(); setShowDetails(prev => !prev) }}
@@ -155,7 +151,7 @@ const EntryBlock = memo(function EntryBlock({
   return (
     <div
       className={`group absolute left-0.5 right-0.5 rounded-xl overflow-hidden ${borderClass}`}
-      style={{ top, height: px, backgroundColor: entry.color, zIndex: 2, boxShadow, ...borderOverride }}
+      style={{ top, height: px, backgroundColor: entry.color, zIndex: 2, boxShadow }}
     >
       {emotionOverlayStyle && (
         <div className="absolute inset-0 rounded-xl pointer-events-none" style={emotionOverlayStyle} />
@@ -262,16 +258,34 @@ export default function SplitTimeline({ entries, date, jEmotions = [], aEmotions
     return { overlapMap, connectors }
   }, [jEntries, aEntries, now, vsm])
 
+  // Pre-compute emotion segments per entry so renderCol passes stable array references
+  // to memo()'d EntryBlock — avoids recomputing on every render
+  const jEmotionSegs = useMemo(() => {
+    const m = new Map<string, EmotionSegment[]>()
+    for (const entry of jEntries) {
+      const end = entry.endTime ? new Date(entry.endTime) : now
+      m.set(entry.id, getEventEmotionSegments(jEmotions, new Date(entry.startTime), end))
+    }
+    return m
+  }, [jEntries, jEmotions, now])
+
+  const aEmotionSegs = useMemo(() => {
+    const m = new Map<string, EmotionSegment[]>()
+    for (const entry of aEntries) {
+      const end = entry.endTime ? new Date(entry.endTime) : now
+      m.set(entry.id, getEventEmotionSegments(aEmotions, new Date(entry.startTime), end))
+    }
+    return m
+  }, [aEntries, aEmotions, now])
+
   const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), [])
   const nowTop = (minOfDay(now) - vsm) * PX_PER_MIN
   const showNowLine = date === todayStr && minOfDay(now) >= vsm && minOfDay(now) <= vem
 
-  const renderCol = (list: StatusEntry[], emotions: EmotionData[]) => list.map(entry => {
+  const renderCol = (list: StatusEntry[], emotionSegs: Map<string, EmotionSegment[]>) => list.map(entry => {
     const s = minOfDay(new Date(entry.startTime))
     const rawE = entry.endTime ? minOfDay(new Date(entry.endTime)) : minOfDay(now)
     const e = rawE >= s ? rawE : 1440
-    const entryEnd = entry.endTime ? new Date(entry.endTime) : now
-    const emotionSegments = getEventEmotionSegments(emotions, new Date(entry.startTime), entryEnd)
     return (
       <EntryBlock
         key={entry.id}
@@ -279,7 +293,7 @@ export default function SplitTimeline({ entries, date, jEmotions = [], aEmotions
         top={(s - vsm) * PX_PER_MIN}
         height={(e - s) * PX_PER_MIN}
         isTogether={(overlapMap.get(entry.id) ?? 0) > 0}
-        emotionSegments={emotionSegments}
+        emotionSegments={emotionSegs.get(entry.id) ?? []}
         onEdit={onEdit}
         onDelete={onDelete}
       />
@@ -347,7 +361,7 @@ export default function SplitTimeline({ entries, date, jEmotions = [], aEmotions
                   <div key={h} className="absolute left-0 right-0 border-t border-gray-100/50" style={{ top: (h * 60 - vsm) * PX_PER_MIN }} />
                 ))}
                 {showNowLine && <div className="absolute left-0 right-0 border-t-2 border-red-400/40 z-10" style={{ top: nowTop }} />}
-                {renderCol(jEntries, jEmotions)}
+                {renderCol(jEntries, jEmotionSegs)}
               </div>
 
               {/* Together connector column */}
@@ -376,7 +390,7 @@ export default function SplitTimeline({ entries, date, jEmotions = [], aEmotions
                   <div key={h} className="absolute left-0 right-0 border-t border-gray-100/50" style={{ top: (h * 60 - vsm) * PX_PER_MIN }} />
                 ))}
                 {showNowLine && <div className="absolute left-0 right-0 border-t-2 border-red-400/40 z-10" style={{ top: nowTop }} />}
-                {renderCol(aEntries, aEmotions)}
+                {renderCol(aEntries, aEmotionSegs)}
               </div>
 
             </div>

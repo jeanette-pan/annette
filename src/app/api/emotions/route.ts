@@ -45,7 +45,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const { userId, emotion } = await request.json() as { userId: string; emotion: string }
-    if (!userId || !emotion) {
+    // Allow emotion: '' as an explicit deselect marker
+    if (!userId || emotion === undefined || emotion === null) {
       return NextResponse.json({ error: 'userId and emotion required' }, { status: 400 })
     }
     const entry = await prisma.emotionEntry.create({

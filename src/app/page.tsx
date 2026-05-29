@@ -60,7 +60,7 @@ export default function HomePage() {
     if (!currentUser) return
     fetch(`/api/emotions/current?userId=${currentUser.userId}`)
       .then(r => r.json())
-      .then(d => setCurrentEmotion(d.emotion ?? null))
+      .then(d => setCurrentEmotion(d.emotion || null))  // '' (deselect marker) → null
       .catch(() => {})
   }, [currentUser?.userId])
 
@@ -81,9 +81,8 @@ export default function HomePage() {
 
   useEffect(() => { fetchEmotionHistory(timelineDate) }, [timelineDate, fetchEmotionHistory])
 
-  const handleEmotionChange = useCallback((id: EmotionId) => {
+  const handleEmotionChange = useCallback((id: EmotionId | null) => {
     setCurrentEmotion(id)
-    // Refresh emotion history so the timeline reflects the new emotion immediately
     setTimeout(() => fetchEmotionHistory(timelineDate), 150)
   }, [timelineDate, fetchEmotionHistory])
   // ──────────────────────────────────────────────────────────────────────────

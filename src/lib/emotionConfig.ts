@@ -4,14 +4,16 @@ export type Emotion = {
   id: EmotionId
   emoji: string           // used only in stats heatmaps/strips
   label: string
-  circleColor: string     // solid fill for the selector circle + heatmap cells
+  circleColor: string     // primary — heatmap cells, day strips
   glowColor: string       // rgba for glow effects throughout the app
-  cardTint: string        // rgba overlay for single-emotion card background (~24%)
-  cardBorder: string      // solid hex for card border ring
+  cardTint: string        // rgba overlay for single-emotion card background (~20%)
+  cardBorder: string      // kept for reference; not rendered on cards
   cardShadow: string      // rgba for card box-shadow glow
-  gradientColor: string   // rgba for multi-emotion gradient stops (~32%)
+  gradientColor: string   // rgba for multi-emotion gradient stops (~30%)
   stripColor: string      // solid for stats day strip
   selectorBg: string      // pastel for stats heatmap cell backgrounds
+  gradientFrom: string    // hex for selector circle gradient start (primary)
+  gradientTo: string      // hex for selector circle gradient end (secondary)
 }
 
 export const EMOTIONS: Emotion[] = [
@@ -19,79 +21,91 @@ export const EMOTIONS: Emotion[] = [
     id: 'fulfilled',
     emoji: '✨',
     label: 'Fulfilled',
-    circleColor: '#F0A030',
-    glowColor: 'rgba(240,160,48,0.62)',
-    cardTint: 'rgba(255,195,90,0.24)',
-    cardBorder: '#F0A030',
-    cardShadow: 'rgba(240,160,48,0.50)',
-    gradientColor: 'rgba(255,205,110,0.36)',
-    stripColor: '#F0A030',
-    selectorBg: '#FDE68A',
+    circleColor: '#F8C8A6',
+    glowColor: 'rgba(255,214,186,0.65)',
+    cardTint: 'rgba(248,200,166,0.20)',
+    cardBorder: '#F8C8A6',
+    cardShadow: 'rgba(255,214,186,0.55)',
+    gradientColor: 'rgba(247,215,116,0.30)',
+    stripColor: '#F8C8A6',
+    selectorBg: '#FEF3C7',
+    gradientFrom: '#F8C8A6',
+    gradientTo: '#F7D774',
   },
   {
     id: 'calm',
     emoji: '🌿',
     label: 'Calm',
-    circleColor: '#52A878',
-    glowColor: 'rgba(82,168,120,0.62)',
-    cardTint: 'rgba(130,215,170,0.24)',
-    cardBorder: '#52A878',
-    cardShadow: 'rgba(82,168,120,0.50)',
-    gradientColor: 'rgba(130,215,170,0.36)',
-    stripColor: '#52A878',
-    selectorBg: '#BBF7D0',
+    circleColor: '#B7DCC0',
+    glowColor: 'rgba(216,243,220,0.65)',
+    cardTint: 'rgba(183,220,192,0.20)',
+    cardBorder: '#B7DCC0',
+    cardShadow: 'rgba(216,243,220,0.55)',
+    gradientColor: 'rgba(205,238,214,0.30)',
+    stripColor: '#B7DCC0',
+    selectorBg: '#D1FAE5',
+    gradientFrom: '#B7DCC0',
+    gradientTo: '#CDEED6',
   },
   {
     id: 'locked_in',
     emoji: '🎯',
     label: 'Locked In',
-    circleColor: '#84C030',
-    glowColor: 'rgba(132,192,48,0.62)',
-    cardTint: 'rgba(185,235,95,0.24)',
-    cardBorder: '#84C030',
-    cardShadow: 'rgba(132,192,48,0.50)',
-    gradientColor: 'rgba(185,235,95,0.36)',
-    stripColor: '#84C030',
+    circleColor: '#C9E265',
+    glowColor: 'rgba(226,246,163,0.65)',
+    cardTint: 'rgba(201,226,101,0.20)',
+    cardBorder: '#C9E265',
+    cardShadow: 'rgba(226,246,163,0.55)',
+    gradientColor: 'rgba(184,216,90,0.30)',
+    stripColor: '#C9E265',
     selectorBg: '#D9F99D',
+    gradientFrom: '#C9E265',
+    gradientTo: '#B8D85A',
   },
   {
     id: 'sleepy',
     emoji: '🌙',
     label: 'Sleepy',
-    circleColor: '#96A8BC',
-    glowColor: 'rgba(150,168,188,0.62)',
-    cardTint: 'rgba(195,210,228,0.24)',
-    cardBorder: '#96A8BC',
-    cardShadow: 'rgba(150,168,188,0.50)',
-    gradientColor: 'rgba(195,210,228,0.36)',
-    stripColor: '#96A8BC',
+    circleColor: '#C9CCD3',
+    glowColor: 'rgba(225,227,232,0.65)',
+    cardTint: 'rgba(201,204,211,0.20)',
+    cardBorder: '#C9CCD3',
+    cardShadow: 'rgba(225,227,232,0.55)',
+    gradientColor: 'rgba(174,180,191,0.30)',
+    stripColor: '#C9CCD3',
     selectorBg: '#E2E8F0',
+    gradientFrom: '#C9CCD3',
+    gradientTo: '#AEB4BF',
   },
   {
     id: 'low',
     emoji: '☁️',
     label: 'Low',
-    circleColor: '#5A8FC0',
-    glowColor: 'rgba(90,143,192,0.62)',
-    cardTint: 'rgba(145,185,228,0.24)',
-    cardBorder: '#5A8FC0',
-    cardShadow: 'rgba(90,143,192,0.50)',
-    gradientColor: 'rgba(145,185,228,0.36)',
-    stripColor: '#5A8FC0',
+    circleColor: '#8FB7D9',
+    glowColor: 'rgba(201,221,240,0.65)',
+    cardTint: 'rgba(143,183,217,0.20)',
+    cardBorder: '#8FB7D9',
+    cardShadow: 'rgba(201,221,240,0.55)',
+    gradientColor: 'rgba(167,199,231,0.30)',
+    stripColor: '#8FB7D9',
     selectorBg: '#BFDBFE',
+    gradientFrom: '#8FB7D9',
+    gradientTo: '#A7C7E7',
   },
   {
     id: 'overwhelmed',
     emoji: '🔥',
     label: 'Overwhelmed',
-    circleColor: '#BE5A58',
-    glowColor: 'rgba(190,90,88,0.62)',
-    cardTint: 'rgba(225,145,142,0.24)',
-    cardBorder: '#BE5A58',
-    cardShadow: 'rgba(190,90,88,0.50)',
-    gradientColor: 'rgba(225,145,142,0.36)',
-    stripColor: '#BE5A58',
+    circleColor: '#D96C75',
+    glowColor: 'rgba(245,180,184,0.65)',
+    cardTint: 'rgba(217,108,117,0.20)',
+    cardBorder: '#D96C75',
+    cardShadow: 'rgba(245,180,184,0.55)',
+    gradientColor: 'rgba(232,139,143,0.30)',
+    stripColor: '#D96C75',
     selectorBg: '#FECACA',
+    gradientFrom: '#D96C75',
+    gradientTo: '#E88B8F',
   },
 ]
 
@@ -184,7 +198,7 @@ export function buildEmotionGradient(segs: EmotionSegment[]): string {
     const blendStart = (Math.max(0, pos - 0.06) * 100).toFixed(1)
     stops.push(`${c} ${from}%`)
     if (i < segs.length - 1) {
-      stops.push(`${c} ${blendStart}%`)  // taper before the next color
+      stops.push(`${c} ${blendStart}%`)
     } else {
       stops.push(`${c} ${to}%`)
     }
