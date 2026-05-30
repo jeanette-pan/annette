@@ -9,6 +9,7 @@ import Navbar from '@/components/Navbar'
 import UserSelector, { useCurrentUser } from '@/components/UserSelector'
 import CurrentStatusCard from '@/components/CurrentStatusCard'
 import AddStatusModal from '@/components/AddStatusModal'
+import CategoryPicker from '@/components/CategoryPicker'
 import DailyTimeline from '@/components/DailyTimeline'
 import EmotionSelector from '@/components/EmotionSelector'
 import { getTodayString } from '@/lib/utils'
@@ -41,7 +42,6 @@ export default function HomePage() {
   const [todayEntries, setTodayEntries] = useState<StatusEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
-  const [showAddModal, setShowAddModal] = useState(false)
   const [editEntry, setEditEntry] = useState<StatusEntry | null>(null)
   const [editLoading, setEditLoading] = useState(false)
   const today = getTodayString()
@@ -164,6 +164,7 @@ export default function HomePage() {
           isShared: data.isShared,
           // Pass local date so daily grouping uses the user's timezone
           localDate: data.startTime.substring(0, 10),
+          category: data.category || null,
         }),
       })
       setShowSuccess(true)
@@ -251,18 +252,6 @@ export default function HomePage() {
         )}
       </AnimatePresence>
 
-      {/* Add Status Modal */}
-      <AddStatusModal
-        isOpen={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        onSubmit={handleStatusSubmit}
-        userId={currentUser?.userId}
-        userName={currentUser?.userName}
-        userMascot={userConfig?.mascot}
-        userButtonClass={userConfig?.buttonClass}
-        loading={loading}
-        mode="create"
-      />
 
       {/* Edit Status Modal */}
       <AddStatusModal
@@ -304,7 +293,7 @@ export default function HomePage() {
               </div>
             </section>
 
-            {/* Add Status button */}
+            {/* Category picker + emotion selector */}
             <section>
               {!currentUser ? (
                 <div className="text-center py-8 text-gray-400 bg-white/80 backdrop-blur-sm rounded-3xl shadow-lg border border-white/60">
@@ -313,20 +302,12 @@ export default function HomePage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <motion.button
-                    whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(167,139,250,0.3)' }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setShowAddModal(true)}
-                    style={currentUser.userId === 'anthony' ? { backgroundColor: '#FEE12B' } : {}}
-                    className={`w-full rounded-3xl px-6 py-5 font-bold text-lg shadow-lg transition-all duration-200 flex items-center justify-center gap-3 ${
-                      currentUser.userId === 'anthony'
-                        ? 'text-gray-900 hover:brightness-95'
-                        : `text-white ${userConfig?.buttonClass ?? 'bg-violet-400 hover:bg-violet-500'}`
-                    }`}
-                  >
-                    <span className="text-2xl">{userConfig?.mascot}</span>
-                    <span>What are you up to? ✨</span>
-                  </motion.button>
+                  <CategoryPicker
+                    userId={currentUser.userId}
+                    userMascot={userConfig?.mascot ?? '🐧'}
+                    onSubmit={handleStatusSubmit}
+                    loading={loading}
+                  />
 
                   {/* Emotion selector */}
                   <EmotionSelector

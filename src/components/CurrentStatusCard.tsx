@@ -119,7 +119,7 @@ export default function CurrentStatusCard({ userId, userName, entry, isMe, curre
         return (
           <div
             aria-hidden
-            className="absolute bottom-3 left-3 w-3 h-3 rounded-full pointer-events-none"
+            className="absolute bottom-3 right-3 w-3 h-3 rounded-full pointer-events-none"
             style={{
               background: `linear-gradient(135deg, ${em.gradientFrom}, ${em.gradientTo})`,
               boxShadow: `0 0 7px ${em.glowColor}`,

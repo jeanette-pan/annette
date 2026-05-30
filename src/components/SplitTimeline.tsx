@@ -214,23 +214,32 @@ export default function SplitTimeline({ entries, date, jEmotions = [], aEmotions
     aEntries: entries.filter(e => e.userId === 'anthony'),
   }), [entries])
 
-  // View window: snap to hour boundaries with 30-min padding around actual entries
+  // View window: snap to hour boundaries with 30-min padding around actual entries.
+  // Cross-day entries (started previous local day) are clipped to start at 0 (midnight).
   const { vsm, vem, totalH, hours } = useMemo(() => {
     if (entries.length === 0) {
       const hours = Array.from({ length: 15 }, (_, i) => i + 8)
       return { vsm: 480, vem: 1320, totalH: 840 * PX_PER_MIN, hours }
     }
     const mins = entries.flatMap(e => {
-      const s = minOfDay(new Date(e.startTime))
+      const isCrossDay = e.date !== date
+      const s = isCrossDay ? 0 : minOfDay(new Date(e.startTime))
       const rawE = e.endTime ? minOfDay(new Date(e.endTime)) : minOfDay(now)
-      return [s, rawE >= s ? rawE : 24 * 60]
+      // Cross-day entry that ended exactly at midnight → zero visual length, skip
+      if (isCrossDay && rawE === 0 && !!e.endTime) return []
+      const end = isCrossDay ? rawE : (rawE >= s ? rawE : 1440)
+      return [s, end]
     })
+    if (mins.length === 0) {
+      const hours = Array.from({ length: 15 }, (_, i) => i + 8)
+      return { vsm: 480, vem: 1320, totalH: 840 * PX_PER_MIN, hours }
+    }
     const lo = Math.floor(Math.max(0, Math.min(...mins) - 30) / 60) * 60
     const hi = Math.min(Math.ceil((Math.max(...mins) + 30) / 60) * 60, 1440)
     const hours: number[] = []
     for (let h = lo / 60; h <= hi / 60; h++) hours.push(h)
     return { vsm: lo, vem: hi, totalH: (hi - lo) * PX_PER_MIN, hours }
-  }, [entries, now])
+  }, [entries, now, date])
 
   // Overlap detection: produces both overlapMap (glow) and connector bars
   const { overlapMap, connectors } = useMemo(() => {
@@ -292,24 +301,35 @@ export default function SplitTimeline({ entries, date, jEmotions = [], aEmotions
     emotionSegs: Map<string, EmotionSegment[]>,
     otherEmotions: EmotionData[],
     railSide: 'left' | 'right',
-  ) => list.map(entry => {
-    const s = minOfDay(new Date(entry.startTime))
-    const rawE = entry.endTime ? minOfDay(new Date(entry.endTime)) : minOfDay(now)
-    const e = rawE >= s ? rawE : 1440
+  ) => list.flatMap(entry => {
+    // Cross-day entries (started previous local day) are clipped to midnight of viewed day
+    const isCrossDay = entry.date !== date
+    let s: number, e: number
+    if (isCrossDay) {
+      s = 0  // clip display start to midnight of current viewed day
+      const rawE = entry.endTime ? minOfDay(new Date(entry.endTime)) : minOfDay(now)
+      if (rawE === 0 && !!entry.endTime) return []  // ended exactly at midnight — nothing to show
+      e = rawE
+    } else {
+      s = minOfDay(new Date(entry.startTime))
+      const rawE = entry.endTime ? minOfDay(new Date(entry.endTime)) : minOfDay(now)
+      e = rawE >= s ? rawE : 1440  // goes overnight → clip to end of day
+    }
+
     const isTogether = (overlapMap.get(entry.id) ?? 0) > 0
     const segs = emotionSegs.get(entry.id) ?? []
 
     // Subtle glow boost when both people share the same emotion during a together moment
     let emotionsAlign = false
     if (isTogether) {
-      const myEmotion = segs.find(s => s.emotion !== null)?.emotion ?? null
+      const myEmotion = segs.find(seg => seg.emotion !== null)?.emotion ?? null
       if (myEmotion) {
         const otherEmotion = getEmotionAtTime(otherEmotions, new Date(entry.startTime))
         emotionsAlign = otherEmotion?.id === myEmotion.id
       }
     }
 
-    return (
+    return [(
       <EntryBlock
         key={entry.id}
         entry={entry}
@@ -322,7 +342,7 @@ export default function SplitTimeline({ entries, date, jEmotions = [], aEmotions
         onEdit={onEdit}
         onDelete={onDelete}
       />
-    )
+    )]
   })
 
   return (

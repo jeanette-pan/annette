@@ -8,4 +8,5 @@ export type StatusFormData = {
   startTime: string
   endTime?: string
   isShared: boolean
+  category?: string
 }
