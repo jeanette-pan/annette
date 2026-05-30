@@ -53,6 +53,23 @@ export async function GET(request: NextRequest) {
       orderBy: { startTime: 'asc' },
     })
 
+    // Safeguard: among open entries (endTime: null), only keep the most recent
+    // one per user. Older open entries are stale — they should have been closed
+    // by the POST handler but can persist via edge cases or stale data. These
+    // cause phantom blocks spanning many hours on the timeline.
+    // entries is already sorted asc by startTime, so iterating and overwriting
+    // naturally leaves the latest ID for each user in the map.
+    const openEntries = entries.filter(e => !e.endTime)
+    if (openEntries.length > 1) {
+      const latestOpenIdByUser = new Map<string, string>()
+      for (const e of openEntries) latestOpenIdByUser.set(e.userId, e.id)
+      const keepOpenIds = new Set(latestOpenIdByUser.values())
+      const staleIds = new Set(openEntries.filter(e => !keepOpenIds.has(e.id)).map(e => e.id))
+      if (staleIds.size > 0) {
+        return NextResponse.json({ entries: entries.filter(e => !staleIds.has(e.id)) })
+      }
+    }
+
     return NextResponse.json({ entries })
   } catch (error) {
     console.error('GET /api/status error:', error)
