@@ -1,28 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { QUICK_STATUSES } from '@/lib/quickStatuses'
-import type { CategoryId } from '@/lib/categoryConfig'
 
 export const dynamic = 'force-dynamic'
 
 const QS_USER = '__qs__'
+const SEEDED_MARKER = '__seeded__'
 
-async function ensureSeeded(category: string) {
-  const count = await prisma.statusTemplate.count({
-    where: { userId: QS_USER, name: category },
+// Seeds all categories once on first ever call; never re-seeds after that.
+// Using a sentinel record so deletions don't trigger re-seeding.
+async function ensureAllSeeded() {
+  const marker = await prisma.statusTemplate.findFirst({
+    where: { userId: QS_USER, name: SEEDED_MARKER },
   })
-  if (count > 0) return
-  const defaults = QUICK_STATUSES[category as CategoryId]
-  if (!defaults) return
-  await prisma.statusTemplate.createMany({
-    data: defaults.map((qs, i) => ({
-      userId: QS_USER,
-      name: category,
-      status: qs.label,
-      emoji: qs.emoji,
-      sortOrder: i,
-    })),
-  })
+  if (marker) return
+
+  // Count existing items (may exist from a prior per-category seeding implementation)
+  const existingCount = await prisma.statusTemplate.count({ where: { userId: QS_USER } })
+
+  if (existingCount === 0) {
+    const allDefaults = Object.entries(QUICK_STATUSES).flatMap(([catId, items]) =>
+      items.map((qs, i) => ({
+        userId: QS_USER,
+        name: catId,
+        status: qs.label,
+        emoji: qs.emoji,
+        sortOrder: i,
+      }))
+    )
+    await prisma.statusTemplate.createMany({ data: allDefaults })
+  }
+
+  try {
+    await prisma.statusTemplate.create({
+      data: { userId: QS_USER, name: SEEDED_MARKER, status: 'seeded', emoji: '✓', sortOrder: 0 },
+    })
+  } catch { /* race condition on first simultaneous request — fine */ }
 }
 
 export async function GET(request: NextRequest) {
@@ -30,7 +43,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const category = searchParams.get('category')
     if (!category) return NextResponse.json({ error: 'category required' }, { status: 400 })
-    await ensureSeeded(category)
+    await ensureAllSeeded()
     const items = await prisma.statusTemplate.findMany({
       where: { userId: QS_USER, name: category },
       orderBy: { sortOrder: 'asc' },
@@ -48,7 +61,6 @@ export async function POST(request: NextRequest) {
   try {
     const { category, label, emoji } = await request.json()
     if (!category || !label) return NextResponse.json({ error: 'category and label required' }, { status: 400 })
-    await ensureSeeded(category)
     const agg = await prisma.statusTemplate.aggregate({
       where: { userId: QS_USER, name: category },
       _max: { sortOrder: true },

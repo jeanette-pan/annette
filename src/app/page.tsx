@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Check } from 'lucide-react'
 import { format, addDays, subDays, parseISO } from 'date-fns'
@@ -44,6 +44,7 @@ export default function HomePage() {
   const [showSuccess, setShowSuccess] = useState(false)
   const [editEntry, setEditEntry] = useState<StatusEntry | null>(null)
   const [editLoading, setEditLoading] = useState(false)
+  const editingRef = useRef(false)
   const today = getTodayString()
   const [timelineDate, setTimelineDate] = useState(today)
 
@@ -134,10 +135,14 @@ export default function HomePage() {
     if (next <= today) setTimelineDate(next)
   }, [timelineDate, today])
 
+  // Keep a ref in sync so the interval callback can check without stale closure
+  useEffect(() => { editingRef.current = !!editEntry }, [editEntry])
+
   useEffect(() => {
     fetchCurrentStatus()
     fetchTodayEntries()
     const interval = setInterval(() => {
+      if (editingRef.current) return  // don't overwrite form state while editing
       fetchCurrentStatus()
       fetchTodayEntries()
     }, 5000)
@@ -218,7 +223,7 @@ export default function HomePage() {
     }
   }
 
-  const editInitialData = editEntry ? {
+  const editInitialData = useMemo(() => editEntry ? {
     id: editEntry.id,
     status: editEntry.status,
     emoji: editEntry.emoji,
@@ -229,7 +234,7 @@ export default function HomePage() {
       ? format(new Date(editEntry.endTime), "yyyy-MM-dd'T'HH:mm")
       : undefined,
     isShared: editEntry.isShared,
-  } : undefined
+  } : undefined, [editEntry])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-violet-50 via-yellow-50 to-green-50">
