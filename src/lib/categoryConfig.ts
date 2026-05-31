@@ -20,7 +20,7 @@ export const CATEGORIES: Category[] = [
   { id: 'pets',      label: 'Pets',      emoji: '🐾',   color: '#fef9c3' },
   { id: 'exercise',  label: 'Exercise',  emoji: '🏃',   color: '#fef3c7' },
   { id: 'transport', label: 'Transport', emoji: '🚗',   color: '#fed7aa' },
-  { id: 'life',      label: 'Life',      emoji: '🏠',   color: '#fff7ed' },
+  { id: 'life',      label: 'Life',      emoji: '🏠',   color: '#ecfccb' },
   { id: 'sleep',     label: 'Sleep',     emoji: '😴',   color: '#f1f5f9' },
 ]
 

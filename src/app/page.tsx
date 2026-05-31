@@ -8,7 +8,7 @@ import AnimatedBackground from '@/components/AnimatedBackground'
 import Navbar from '@/components/Navbar'
 import UserSelector, { useCurrentUser } from '@/components/UserSelector'
 import CurrentStatusCard from '@/components/CurrentStatusCard'
-import AddStatusModal from '@/components/AddStatusModal'
+import StatusEditorModal from '@/components/StatusEditorModal'
 import CategoryPicker from '@/components/CategoryPicker'
 import DailyTimeline from '@/components/DailyTimeline'
 import EmotionSelector from '@/components/EmotionSelector'
@@ -254,17 +254,13 @@ export default function HomePage() {
 
 
       {/* Edit Status Modal */}
-      <AddStatusModal
+      <StatusEditorModal
         isOpen={!!editEntry}
         onClose={() => setEditEntry(null)}
         onSubmit={handleEditSubmit}
-        userId={currentUser?.userId}
-        userName={currentUser?.userName}
-        userMascot={userConfig?.mascot}
-        userButtonClass={userConfig?.buttonClass}
-        loading={editLoading}
-        mode="edit"
         initialData={editInitialData}
+        loading={editLoading}
+        userId={currentUser?.userId}
       />
 
       <main className="max-w-6xl mx-auto px-4 py-6">

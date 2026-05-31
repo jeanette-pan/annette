@@ -1,38 +1,13 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { format } from 'date-fns'
 import { CATEGORIES, getCategory, type CategoryId } from '@/lib/categoryConfig'
-import { QUICK_STATUSES } from '@/lib/quickStatuses'
 import { getPartnerName } from '@/lib/statusConfig'
 import type { StatusFormData } from './StatusButtons'
 
-// ── Storage ───────────────────────────────────────────────────────────────────
-
-type QS = { label: string; emoji: string }
-// Per-user, per-category ordered list. Undefined = use built-in defaults.
-type QSData = Partial<Record<CategoryId, QS[]>>
-
-const STORAGE_KEY = (userId: string) => `annette_qs_v2_${userId}`
-
-function loadQSData(userId: string): QSData {
-  if (typeof window === 'undefined') return {}
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY(userId))
-    return raw ? JSON.parse(raw) : {}
-  } catch { return {} }
-}
-
-function saveQSData(userId: string, data: QSData) {
-  try { localStorage.setItem(STORAGE_KEY(userId), JSON.stringify(data)) } catch { /* noop */ }
-}
-
-function getList(catId: CategoryId, data: QSData): QS[] {
-  return data[catId] ?? [...QUICK_STATUSES[catId]]
-}
-
-// ── Component ─────────────────────────────────────────────────────────────────
+type SharedQS = { id: string; label: string; emoji: string; sortOrder: number }
 
 type Props = {
   userId: string
@@ -42,107 +17,126 @@ type Props = {
 }
 
 export default function CategoryPicker({ userId, userMascot, onSubmit, loading }: Props) {
-  // Selection state
   const [catId, setCatId] = useState<CategoryId | null>(null)
-  const [selectedQuick, setSelectedQuick] = useState<QS | null>(null)
+  const [selectedQuick, setSelectedQuick] = useState<SharedQS | null>(null)
   const [customText, setCustomText] = useState('')
   const [note, setNote] = useState('')
   const [isShared, setIsShared] = useState(false)
 
-  // QS data (localStorage)
-  const [qsData, setQsData] = useState<QSData>({})
+  const [quickItems, setQuickItems] = useState<SharedQS[]>([])
+  const [qsLoading, setQsLoading] = useState(false)
 
-  // Manage mode state
   const [manageMode, setManageMode] = useState(false)
-  const [editingLabel, setEditingLabel] = useState<string | null>(null)
-  const [editDraft, setEditDraft] = useState<QS>({ label: '', emoji: '' })
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editDraft, setEditDraft] = useState<{ label: string; emoji: string }>({ label: '', emoji: '' })
   const [addingNew, setAddingNew] = useState(false)
-  const [newDraft, setNewDraft] = useState<QS>({ label: '', emoji: '✨' })
-
-  // Drag state
-  const [draggingLabel, setDraggingLabel] = useState<string | null>(null)
-  const [dragOverLabel, setDragOverLabel] = useState<string | null>(null)
+  const [newDraft, setNewDraft] = useState<{ label: string; emoji: string }>({ label: '', emoji: '✨' })
+  const [draggingId, setDraggingId] = useState<string | null>(null)
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
 
   const editInputRef = useRef<HTMLInputElement>(null)
   const newInputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => { setQsData(loadQSData(userId)) }, [userId])
-
   const partnerName = getPartnerName(userId)
   const cat = catId ? getCategory(catId) : null
-  const quickList = useMemo<QS[]>(() => (catId ? getList(catId, qsData) : []), [catId, qsData])
 
-  // ── QS mutation helpers ────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!catId) { setQuickItems([]); return }
+    setQsLoading(true)
+    setQuickItems([])
+    fetch(`/api/quick-statuses?category=${catId}`)
+      .then(r => r.json())
+      .then(d => setQuickItems(d.items ?? []))
+      .catch(() => setQuickItems([]))
+      .finally(() => setQsLoading(false))
+  }, [catId])
 
-  const commitList = useCallback((id: CategoryId, list: QS[]) => {
-    setQsData(prev => {
-      const next = { ...prev, [id]: list }
-      saveQSData(userId, next)
-      return next
-    })
-  }, [userId])
-
-  const deleteQS = useCallback((label: string) => {
+  const refetchQS = useCallback(async () => {
     if (!catId) return
-    commitList(catId, quickList.filter(q => q.label !== label))
-    if (selectedQuick?.label === label) setSelectedQuick(null)
-  }, [catId, quickList, selectedQuick, commitList])
+    const d = await fetch(`/api/quick-statuses?category=${catId}`).then(r => r.json())
+    setQuickItems(d.items ?? [])
+  }, [catId])
 
-  const startEdit = useCallback((qs: QS) => {
-    setEditingLabel(qs.label)
-    setEditDraft({ ...qs })
-    setTimeout(() => editInputRef.current?.focus(), 50)
-  }, [])
+  // ── QS mutations ───────────────────────────────────────────────────────────
 
-  const saveEdit = useCallback(() => {
-    if (!editingLabel || !editDraft.label.trim() || !catId) { setEditingLabel(null); return }
+  const deleteQS = useCallback(async (id: string) => {
+    setQuickItems(prev => prev.filter(q => q.id !== id))
+    if (selectedQuick?.id === id) setSelectedQuick(null)
+    await fetch(`/api/quick-statuses/${id}`, { method: 'DELETE' }).catch(() => refetchQS())
+  }, [selectedQuick, refetchQS])
+
+  const saveEdit = useCallback(async () => {
+    if (!editingId || !editDraft.label.trim()) { setEditingId(null); return }
     const label = editDraft.label.trim()
     const emoji = editDraft.emoji || '✨'
-    commitList(catId, quickList.map(q => q.label === editingLabel ? { label, emoji } : q))
-    if (selectedQuick?.label === editingLabel) setSelectedQuick({ label, emoji })
-    setEditingLabel(null)
-  }, [editingLabel, editDraft, catId, quickList, selectedQuick, commitList])
+    setQuickItems(prev => prev.map(q => q.id === editingId ? { ...q, label, emoji } : q))
+    if (selectedQuick?.id === editingId) setSelectedQuick(prev => prev ? { ...prev, label, emoji } : null)
+    setEditingId(null)
+    await fetch(`/api/quick-statuses/${editingId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label, emoji }),
+    }).catch(() => refetchQS())
+  }, [editingId, editDraft, selectedQuick, refetchQS])
 
-  const moveQS = useCallback((label: string, dir: -1 | 1) => {
-    if (!catId) return
-    const list = [...quickList]
-    const i = list.findIndex(q => q.label === label)
+  const moveQS = useCallback(async (id: string, dir: -1 | 1) => {
+    const list = [...quickItems]
+    const i = list.findIndex(q => q.id === id)
     const j = i + dir
     if (i < 0 || j < 0 || j >= list.length) return
     ;[list[i], list[j]] = [list[j], list[i]]
-    commitList(catId, list)
-  }, [catId, quickList, commitList])
+    setQuickItems(list)
+    await fetch('/api/quick-statuses', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderedIds: list.map(q => q.id) }),
+    }).catch(() => refetchQS())
+  }, [quickItems, refetchQS])
 
-  const addNew = useCallback(() => {
+  const addNew = useCallback(async () => {
     if (!catId || !newDraft.label.trim()) { setAddingNew(false); return }
-    commitList(catId, [...quickList, { label: newDraft.label.trim(), emoji: newDraft.emoji || '✨' }])
+    const label = newDraft.label.trim()
+    const emoji = newDraft.emoji || '✨'
     setNewDraft({ label: '', emoji: '✨' })
     setAddingNew(false)
-  }, [catId, quickList, newDraft, commitList])
+    try {
+      const d = await fetch('/api/quick-statuses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category: catId, label, emoji }),
+      }).then(r => r.json())
+      if (d.item) setQuickItems(prev => [...prev, d.item])
+    } catch { await refetchQS() }
+  }, [catId, newDraft, refetchQS])
 
-  // ── Drag-and-drop ──────────────────────────────────────────────────────────
+  // ── Drag & drop ────────────────────────────────────────────────────────────
 
-  const onDragStart = useCallback((label: string) => setDraggingLabel(label), [])
+  const onDragStart = useCallback((id: string) => setDraggingId(id), [])
 
-  const onDragOver = useCallback((e: React.DragEvent, label: string) => {
+  const onDragOver = useCallback((e: React.DragEvent, id: string) => {
     e.preventDefault()
-    if (label !== draggingLabel) setDragOverLabel(label)
-  }, [draggingLabel])
+    if (id !== draggingId) setDragOverId(id)
+  }, [draggingId])
 
-  const onDrop = useCallback((targetLabel: string) => {
-    if (!catId || !draggingLabel || draggingLabel === targetLabel) {
-      setDraggingLabel(null); setDragOverLabel(null); return
+  const onDrop = useCallback(async (targetId: string) => {
+    if (!catId || !draggingId || draggingId === targetId) {
+      setDraggingId(null); setDragOverId(null); return
     }
-    const list = [...quickList]
-    const fromIdx = list.findIndex(q => q.label === draggingLabel)
-    const toIdx = list.findIndex(q => q.label === targetLabel)
+    const list = [...quickItems]
+    const fromIdx = list.findIndex(q => q.id === draggingId)
+    const toIdx = list.findIndex(q => q.id === targetId)
     if (fromIdx >= 0 && toIdx >= 0) {
       const [item] = list.splice(fromIdx, 1)
       list.splice(toIdx, 0, item)
-      commitList(catId, list)
+      setQuickItems(list)
+      await fetch('/api/quick-statuses', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderedIds: list.map(q => q.id) }),
+      }).catch(() => refetchQS())
     }
-    setDraggingLabel(null); setDragOverLabel(null)
-  }, [catId, draggingLabel, quickList, commitList])
+    setDraggingId(null); setDragOverId(null)
+  }, [catId, draggingId, quickItems, refetchQS])
 
   // ── Navigation ─────────────────────────────────────────────────────────────
 
@@ -152,12 +146,12 @@ export default function CategoryPicker({ userId, userMascot, onSubmit, loading }
       setNote(''); setIsShared(false); setManageMode(false)
     } else {
       setCatId(id); setSelectedQuick(null); setCustomText('')
-      setManageMode(false); setAddingNew(false); setEditingLabel(null)
+      setManageMode(false); setAddingNew(false); setEditingId(null)
     }
   }, [catId])
 
   const handleSubmit = useCallback(() => {
-    if (!customText.trim() && !selectedQuick || !cat) return
+    if ((!customText.trim() && !selectedQuick) || !cat) return
     const status = selectedQuick?.label ?? customText.trim()
     const emoji = selectedQuick?.emoji ?? cat.emoji
     if (!status) return
@@ -167,8 +161,6 @@ export default function CategoryPicker({ userId, userMascot, onSubmit, loading }
 
   const statusText = selectedQuick?.label ?? customText.trim()
   const statusEmoji = selectedQuick?.emoji ?? cat?.emoji ?? '✨'
-
-  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="bg-white/70 backdrop-blur-sm rounded-3xl border border-white/60 shadow-lg overflow-hidden">
@@ -221,17 +213,16 @@ export default function CategoryPicker({ userId, userMascot, onSubmit, loading }
                       Manage {cat?.label}
                     </p>
                     <button
-                      onClick={() => { setManageMode(false); setEditingLabel(null); setAddingNew(false) }}
+                      onClick={() => { setManageMode(false); setEditingId(null); setAddingNew(false) }}
                       className="text-[10px] font-semibold text-violet-500 hover:text-violet-700 px-2 py-0.5 rounded-full hover:bg-violet-50 transition-colors"
                     >
                       Done ✓
                     </button>
                   </div>
 
-                  {quickList.map((qs, i) =>
-                    editingLabel === qs.label ? (
-                      // Inline edit row
-                      <div key={qs.label} className="flex items-center gap-1.5 px-2 py-1.5 rounded-xl border-2 border-violet-300 bg-white shadow-sm">
+                  {quickItems.map((qs, i) =>
+                    editingId === qs.id ? (
+                      <div key={qs.id} className="flex items-center gap-1.5 px-2 py-1.5 rounded-xl border-2 border-violet-300 bg-white shadow-sm">
                         <input
                           value={editDraft.emoji}
                           onChange={e => setEditDraft(d => ({ ...d, emoji: e.target.value }))}
@@ -243,7 +234,7 @@ export default function CategoryPicker({ userId, userMascot, onSubmit, loading }
                           value={editDraft.label}
                           onChange={e => setEditDraft(d => ({ ...d, label: e.target.value }))}
                           onBlur={saveEdit}
-                          onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditingLabel(null) }}
+                          onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditingId(null) }}
                           className="flex-1 text-xs font-semibold outline-none text-gray-700 min-w-0"
                           placeholder="Label"
                         />
@@ -253,42 +244,38 @@ export default function CategoryPicker({ userId, userMascot, onSubmit, loading }
                         </button>
                       </div>
                     ) : (
-                      // Draggable manage row
                       <div
-                        key={qs.label}
+                        key={qs.id}
                         draggable
-                        onDragStart={() => onDragStart(qs.label)}
-                        onDragOver={e => onDragOver(e, qs.label)}
-                        onDrop={() => onDrop(qs.label)}
-                        onDragEnd={() => { setDraggingLabel(null); setDragOverLabel(null) }}
+                        onDragStart={() => onDragStart(qs.id)}
+                        onDragOver={e => onDragOver(e, qs.id)}
+                        onDrop={() => onDrop(qs.id)}
+                        onDragEnd={() => { setDraggingId(null); setDragOverId(null) }}
                         className="flex items-center gap-2 px-2 py-1.5 rounded-xl border transition-all duration-100 select-none"
                         style={{
-                          backgroundColor: dragOverLabel === qs.label ? cat!.color + '40' : 'rgba(249,250,251,0.9)',
-                          borderColor: dragOverLabel === qs.label ? cat!.color : 'transparent',
-                          opacity: draggingLabel === qs.label ? 0.4 : 1,
-                          cursor: draggingLabel ? 'grabbing' : 'grab',
+                          backgroundColor: dragOverId === qs.id ? cat!.color + '40' : 'rgba(249,250,251,0.9)',
+                          borderColor: dragOverId === qs.id ? cat!.color : 'transparent',
+                          opacity: draggingId === qs.id ? 0.4 : 1,
+                          cursor: draggingId ? 'grabbing' : 'grab',
                         }}
                       >
-                        {/* Drag handle */}
                         <span className="text-gray-300 text-[11px] leading-none shrink-0 font-bold tracking-tighter">⠿⠿</span>
                         <span className="text-sm shrink-0">{qs.emoji}</span>
                         <span className="flex-1 text-xs font-semibold text-gray-700 min-w-0 truncate">{qs.label}</span>
-                        {/* Up / Down — touch-friendly fallback for mobile */}
-                        <button onClick={() => moveQS(qs.label, -1)} disabled={i === 0}
+                        <button onClick={() => moveQS(qs.id, -1)} disabled={i === 0}
                           className="w-5 h-5 flex items-center justify-center rounded text-gray-300 hover:text-gray-500 hover:bg-gray-200 disabled:opacity-20 text-[10px] shrink-0">
                           ↑
                         </button>
-                        <button onClick={() => moveQS(qs.label, 1)} disabled={i === quickList.length - 1}
+                        <button onClick={() => moveQS(qs.id, 1)} disabled={i === quickItems.length - 1}
                           className="w-5 h-5 flex items-center justify-center rounded text-gray-300 hover:text-gray-500 hover:bg-gray-200 disabled:opacity-20 text-[10px] shrink-0">
                           ↓
                         </button>
-                        {/* Edit */}
-                        <button onClick={() => startEdit(qs)}
+                        <button
+                          onClick={() => { setEditingId(qs.id); setEditDraft({ label: qs.label, emoji: qs.emoji }); setTimeout(() => editInputRef.current?.focus(), 50) }}
                           className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-violet-100 text-violet-400 text-[10px] shrink-0 transition-colors">
                           ✏
                         </button>
-                        {/* Delete */}
-                        <button onClick={() => deleteQS(qs.label)}
+                        <button onClick={() => deleteQS(qs.id)}
                           className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-red-100 text-red-400 text-[11px] shrink-0 transition-colors">
                           ×
                         </button>
@@ -296,7 +283,6 @@ export default function CategoryPicker({ userId, userMascot, onSubmit, loading }
                     )
                   )}
 
-                  {/* Add new */}
                   {addingNew ? (
                     <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-xl border-2 border-violet-300 bg-white shadow-sm">
                       <input
@@ -337,17 +323,15 @@ export default function CategoryPicker({ userId, userMascot, onSubmit, loading }
               ) : (
                 /* ── SELECT MODE ────────────────────────────────────────────── */
                 <div className="pt-3 space-y-2.5">
-                  {/* Quick status pills + Edit shortcut */}
                   <div className="flex flex-wrap gap-2 items-center">
-                    {quickList.map(qs => {
-                      const isActive = selectedQuick?.label === qs.label
+                    {qsLoading ? (
+                      <span className="text-xs text-gray-300">Loading...</span>
+                    ) : quickItems.map(qs => {
+                      const isActive = selectedQuick?.id === qs.id
                       return (
                         <button
-                          key={qs.label}
-                          onClick={() => {
-                            setSelectedQuick(prev => prev?.label === qs.label ? null : qs)
-                            setCustomText('')
-                          }}
+                          key={qs.id}
+                          onClick={() => { setSelectedQuick(prev => prev?.id === qs.id ? null : qs); setCustomText('') }}
                           className="flex items-center gap-1 px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all duration-150"
                           style={{
                             backgroundColor: isActive ? cat!.color : 'rgba(243,244,246,0.9)',
@@ -371,7 +355,6 @@ export default function CategoryPicker({ userId, userMascot, onSubmit, loading }
                     </button>
                   </div>
 
-                  {/* Custom text */}
                   <input
                     type="text"
                     value={customText}
@@ -381,7 +364,6 @@ export default function CategoryPicker({ userId, userMascot, onSubmit, loading }
                     className="w-full px-3 py-2 text-sm rounded-2xl border border-gray-200 bg-white/80 text-gray-700 placeholder:text-gray-300 focus:outline-none focus:border-violet-300"
                   />
 
-                  {/* Note */}
                   <textarea
                     value={note}
                     onChange={e => setNote(e.target.value)}
@@ -390,7 +372,6 @@ export default function CategoryPicker({ userId, userMascot, onSubmit, loading }
                     className="w-full px-3 py-2 text-sm rounded-2xl border border-gray-200 bg-white/80 text-gray-700 placeholder:text-gray-300 focus:outline-none focus:border-violet-300 resize-none"
                   />
 
-                  {/* Together toggle */}
                   <button
                     onClick={() => setIsShared(p => !p)}
                     className="w-full flex items-center justify-between px-3 py-2.5 rounded-2xl border-2 transition-all duration-200"
@@ -417,7 +398,6 @@ export default function CategoryPicker({ userId, userMascot, onSubmit, loading }
                     </div>
                   </button>
 
-                  {/* Save */}
                   <motion.button
                     whileHover={{ scale: statusText ? 1.02 : 1 }}
                     whileTap={{ scale: statusText ? 0.98 : 1 }}

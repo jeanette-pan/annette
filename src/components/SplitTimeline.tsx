@@ -35,6 +35,10 @@ const PX_PER_MIN = 1.5 // 90px per hour
 
 function minOfDay(d: Date) { return d.getHours() * 60 + d.getMinutes() }
 
+function localDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 function hourLabel(h: number) {
   if (h === 0 || h === 24) return '12a'
   if (h === 12) return '12p'
@@ -224,11 +228,24 @@ export default function SplitTimeline({ entries, date, jEmotions = [], aEmotions
     const mins = entries.flatMap(e => {
       const isCrossDay = e.date !== date
       const s = isCrossDay ? 0 : minOfDay(new Date(e.startTime))
-      const rawE = e.endTime ? minOfDay(new Date(e.endTime)) : minOfDay(now)
-      // Cross-day entry that ended exactly at midnight → zero visual length, skip
-      if (isCrossDay && rawE === 0 && !!e.endTime) return []
-      const end = isCrossDay ? rawE : (rawE >= s ? rawE : 1440)
-      return [s, end]
+      let endMin: number
+      if (!e.endTime) {
+        endMin = minOfDay(now)
+      } else {
+        const endD = new Date(e.endTime)
+        const endLocal = localDateStr(endD)
+        if (isCrossDay) {
+          if (endLocal > date) { endMin = 1440 }
+          else if (endLocal === date) {
+            const rawE = minOfDay(endD)
+            if (rawE === 0) return []
+            endMin = rawE
+          } else return []
+        } else {
+          endMin = endLocal > date ? 1440 : Math.max(minOfDay(endD), s)
+        }
+      }
+      return [s, endMin]
     })
     if (mins.length === 0) {
       const hours = Array.from({ length: 15 }, (_, i) => i + 8)
@@ -306,15 +323,30 @@ export default function SplitTimeline({ entries, date, jEmotions = [], aEmotions
     const isCrossDay = entry.date !== date
     let s: number, e: number
     if (isCrossDay) {
-      s = 0  // clip display start to midnight of current viewed day
-      const rawE = entry.endTime ? minOfDay(new Date(entry.endTime)) : minOfDay(now)
-      if (rawE === 0 && !!entry.endTime) return []  // ended exactly at midnight — nothing to show
-      e = rawE
+      s = 0
+      if (!entry.endTime) {
+        e = minOfDay(now)
+      } else {
+        const endD = new Date(entry.endTime)
+        const endLocal = localDateStr(endD)
+        if (endLocal > date) { e = 1440 }
+        else if (endLocal === date) {
+          const rawE = minOfDay(endD)
+          if (rawE === 0) return []
+          e = rawE
+        } else return []
+      }
     } else {
       s = minOfDay(new Date(entry.startTime))
-      const rawE = entry.endTime ? minOfDay(new Date(entry.endTime)) : minOfDay(now)
-      e = rawE >= s ? rawE : 1440  // goes overnight → clip to end of day
+      if (!entry.endTime) {
+        e = minOfDay(now)
+      } else {
+        const endD = new Date(entry.endTime)
+        const endLocal = localDateStr(endD)
+        e = endLocal > date ? 1440 : Math.max(minOfDay(endD), s)
+      }
     }
+    if (e <= s && e < 1440) return []
 
     const isTogether = (overlapMap.get(entry.id) ?? 0) > 0
     const segs = emotionSegs.get(entry.id) ?? []
