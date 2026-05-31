@@ -15,10 +15,10 @@ export const QUICK_STATUSES: Record<CategoryId, QuickStatus[]> = {
     { label: 'Boba', emoji: '🧋' },
   ],
   social: [
-    { label: 'With Family', emoji: '👨‍👩‍👧' },
     { label: 'With Friends', emoji: '👥' },
-    { label: 'Date Night', emoji: '💑' },
+    { label: 'Hanging Out', emoji: '🤝' },
     { label: 'Video Call', emoji: '📱' },
+    { label: 'Party', emoji: '🎉' },
   ],
   work: [
     { label: 'Deep Work', emoji: '💻' },
@@ -32,11 +32,11 @@ export const QUICK_STATUSES: Record<CategoryId, QuickStatus[]> = {
     { label: 'Homework', emoji: '✏️' },
     { label: 'Research', emoji: '🔬' },
   ],
-  exercise: [
-    { label: 'Gym', emoji: '🏋️' },
-    { label: 'Running', emoji: '🏃' },
-    { label: 'Yoga', emoji: '🧘' },
-    { label: 'Walk', emoji: '🚶' },
+  relationship: [
+    { label: 'Date Night', emoji: '💑' },
+    { label: 'Quality Time', emoji: '💕' },
+    { label: 'Video Call', emoji: '📱' },
+    { label: 'Deep Talk', emoji: '💬' },
   ],
   wellness: [
     { label: 'Self Care', emoji: '🛁' },
@@ -68,11 +68,11 @@ export const QUICK_STATUSES: Record<CategoryId, QuickStatus[]> = {
     { label: 'Birthday', emoji: '🎂' },
     { label: 'Celebration', emoji: '🥂' },
   ],
-  pets: [
-    { label: 'Dog Walk', emoji: '🐕' },
-    { label: 'Vet', emoji: '🐾' },
-    { label: 'Pet Time', emoji: '🐱' },
-    { label: 'Feeding', emoji: '🦴' },
+  family: [
+    { label: 'Family Time', emoji: '👨‍👩‍👧' },
+    { label: 'Family Dinner', emoji: '🍽️' },
+    { label: 'Family Call', emoji: '📱' },
+    { label: 'Visiting', emoji: '🏠' },
   ],
   sleep: [
     { label: 'Sleeping', emoji: '😴' },

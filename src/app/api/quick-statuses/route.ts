@@ -1,41 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { QUICK_STATUSES } from '@/lib/quickStatuses'
 
 export const dynamic = 'force-dynamic'
 
 const QS_USER = '__qs__'
-const SEEDED_MARKER = '__seeded__'
+const SEEDED_MARKER_V2 = '__seeded_v2__'
 
-// Seeds all categories once on first ever call; never re-seeds after that.
-// Using a sentinel record so deletions don't trigger re-seeding.
-async function ensureAllSeeded() {
+// On first call: wipe all auto-seeded defaults and mark initialized.
+// Sentinel guarantees this runs exactly once; no defaults are ever re-created.
+async function ensureInitialized() {
   const marker = await prisma.statusTemplate.findFirst({
-    where: { userId: QS_USER, name: SEEDED_MARKER },
+    where: { userId: QS_USER, name: SEEDED_MARKER_V2 },
   })
   if (marker) return
 
-  // Count existing items (may exist from a prior per-category seeding implementation)
-  const existingCount = await prisma.statusTemplate.count({ where: { userId: QS_USER } })
-
-  if (existingCount === 0) {
-    const allDefaults = Object.entries(QUICK_STATUSES).flatMap(([catId, items]) =>
-      items.map((qs, i) => ({
-        userId: QS_USER,
-        name: catId,
-        status: qs.label,
-        emoji: qs.emoji,
-        sortOrder: i,
-      }))
-    )
-    await prisma.statusTemplate.createMany({ data: allDefaults })
-  }
-
   try {
+    await prisma.statusTemplate.deleteMany({ where: { userId: QS_USER } })
     await prisma.statusTemplate.create({
-      data: { userId: QS_USER, name: SEEDED_MARKER, status: 'seeded', emoji: '✓', sortOrder: 0 },
+      data: { userId: QS_USER, name: SEEDED_MARKER_V2, status: 'initialized', emoji: '✓', sortOrder: 0 },
     })
-  } catch { /* race condition on first simultaneous request — fine */ }
+  } catch { /* race condition: another request initialized concurrently — fine */ }
 }
 
 export async function GET(request: NextRequest) {
@@ -43,7 +27,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const category = searchParams.get('category')
     if (!category) return NextResponse.json({ error: 'category required' }, { status: 400 })
-    await ensureAllSeeded()
+    await ensureInitialized()
     const items = await prisma.statusTemplate.findMany({
       where: { userId: QS_USER, name: category },
       orderBy: { sortOrder: 'asc' },

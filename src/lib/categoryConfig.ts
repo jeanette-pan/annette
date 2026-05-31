@@ -1,6 +1,6 @@
 export type CategoryId =
-  | 'food' | 'social' | 'work' | 'school' | 'exercise' | 'wellness'
-  | 'transport' | 'life' | 'relax' | 'events' | 'pets' | 'sleep'
+  | 'food' | 'social' | 'work' | 'school' | 'relationship' | 'wellness'
+  | 'transport' | 'life' | 'relax' | 'events' | 'family' | 'sleep'
 
 export type Category = {
   id: CategoryId
@@ -10,18 +10,18 @@ export type Category = {
 }
 
 export const CATEGORIES: Category[] = [
-  { id: 'social',    label: 'Social',    emoji: '👥',   color: '#fce7f3' },
-  { id: 'relax',     label: 'Relax',     emoji: '✨',   color: '#fdf4ff' },
-  { id: 'events',    label: 'Events',    emoji: '🎉',   color: '#ede9fe' },
-  { id: 'work',      label: 'Work',      emoji: '💻',   color: '#dbeafe' },
-  { id: 'school',    label: 'School',    emoji: '📚',   color: '#e0f2fe' },
-  { id: 'wellness',  label: 'Wellness',  emoji: '🧘',   color: '#ccfbf1' },
-  { id: 'food',      label: 'Food',      emoji: '🍽️',  color: '#dcfce7' },
-  { id: 'pets',      label: 'Pets',      emoji: '🐾',   color: '#fef9c3' },
-  { id: 'exercise',  label: 'Exercise',  emoji: '🏃',   color: '#fef3c7' },
-  { id: 'transport', label: 'Transport', emoji: '🚗',   color: '#fed7aa' },
-  { id: 'life',      label: 'Life',      emoji: '🏠',   color: '#ecfccb' },
-  { id: 'sleep',     label: 'Sleep',     emoji: '😴',   color: '#f1f5f9' },
+  { id: 'social',       label: 'Social',       emoji: '👥',   color: '#fce7f3' },
+  { id: 'transport',    label: 'Transport',    emoji: '🚗',   color: '#fed7aa' },
+  { id: 'life',         label: 'Life',         emoji: '🏠',   color: '#ecfccb' },
+  { id: 'food',         label: 'Food',         emoji: '🍽️',  color: '#dcfce7' },
+  { id: 'wellness',     label: 'Wellness',     emoji: '🧘',   color: '#ccfbf1' },
+  { id: 'school',       label: 'School',       emoji: '📚',   color: '#e0f2fe' },
+  { id: 'work',         label: 'Work',         emoji: '💻',   color: '#dbeafe' },
+  { id: 'events',       label: 'Events',       emoji: '🎉',   color: '#ede9fe' },
+  { id: 'sleep',        label: 'Sleep',        emoji: '😴',   color: '#f1f5f9' },
+  { id: 'family',       label: 'Family',       emoji: '👨‍👩‍👧',  color: '#fef9c3' },
+  { id: 'relax',        label: 'Relax',        emoji: '✨',   color: '#fdf4ff' },
+  { id: 'relationship', label: 'Relationship', emoji: '💕',   color: '#fee2e2' },
 ]
 
 export const CATEGORY_MAP = new Map<CategoryId, Category>(

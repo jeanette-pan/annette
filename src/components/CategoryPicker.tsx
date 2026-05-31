@@ -346,13 +346,28 @@ export default function CategoryPicker({ userId, userMascot, onSubmit, loading }
                         </button>
                       )
                     })}
-                    <button
-                      onClick={() => { setManageMode(true); setSelectedQuick(null) }}
-                      className="px-2 py-1 rounded-full text-[10px] font-bold text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors"
-                      title="Manage quick statuses"
-                    >
-                      ✎
-                    </button>
+                    {/* + button: opens manage mode with add form ready */}
+                    {!qsLoading && (
+                      <button
+                        onClick={() => { setManageMode(true); setSelectedQuick(null); setAddingNew(true); setTimeout(() => newInputRef.current?.focus(), 50) }}
+                        className={quickItems.length === 0
+                          ? 'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold text-gray-400 hover:text-violet-500 border border-dashed border-gray-300 hover:border-violet-300 hover:bg-violet-50 transition-colors'
+                          : 'px-2 py-1 rounded-full text-[12px] font-bold text-gray-300 hover:text-violet-500 hover:bg-violet-50 transition-colors'
+                        }
+                      >
+                        {quickItems.length === 0 ? <><span>+</span><span>Add Quick Status</span></> : '+'}
+                      </button>
+                    )}
+                    {/* ✎ manage button: only when items exist */}
+                    {!qsLoading && quickItems.length > 0 && (
+                      <button
+                        onClick={() => { setManageMode(true); setSelectedQuick(null) }}
+                        className="px-2 py-1 rounded-full text-[10px] font-bold text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors"
+                        title="Manage quick statuses"
+                      >
+                        ✎
+                      </button>
+                    )}
                   </div>
 
                   <input
