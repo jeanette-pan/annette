@@ -7,6 +7,7 @@ const navLinks = [
   { href: '/', label: 'Home', emoji: '🏠' },
   { href: '/calendar', label: 'Calendar', emoji: '📅' },
   { href: '/stats', label: 'Stats', emoji: '📊' },
+  { href: '/bugs', label: 'Bugs', emoji: '🐛' },
 ]
 
 export default function Navbar() {
