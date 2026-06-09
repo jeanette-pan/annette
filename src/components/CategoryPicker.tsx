@@ -22,6 +22,8 @@ export default function CategoryPicker({ userId, userMascot, onSubmit, loading }
   const [customText, setCustomText] = useState('')
   const [note, setNote] = useState('')
   const [isShared, setIsShared] = useState(false)
+  const [startTime, setStartTime] = useState(() => format(new Date(), "yyyy-MM-dd'T'HH:mm"))
+  const [endTime, setEndTime] = useState('')
 
   const [quickItems, setQuickItems] = useState<SharedQS[]>([])
   const [qsLoading, setQsLoading] = useState(false)
@@ -154,10 +156,11 @@ export default function CategoryPicker({ userId, userMascot, onSubmit, loading }
     if ((!customText.trim() && !selectedQuick) || !cat) return
     const status = selectedQuick?.label ?? customText.trim()
     const emoji = selectedQuick?.emoji ?? cat.emoji
-    if (!status) return
-    onSubmit({ status, emoji, note, color: cat.color, startTime: format(new Date(), "yyyy-MM-dd'T'HH:mm"), isShared, category: cat.id })
+    if (!status || !startTime) return
+    onSubmit({ status, emoji, note, color: cat.color, startTime, endTime: endTime || undefined, isShared, category: cat.id })
     setCatId(null); setSelectedQuick(null); setCustomText(''); setNote(''); setIsShared(false)
-  }, [selectedQuick, customText, cat, note, isShared, onSubmit])
+    setStartTime(format(new Date(), "yyyy-MM-dd'T'HH:mm")); setEndTime('')
+  }, [selectedQuick, customText, cat, note, isShared, startTime, endTime, onSubmit])
 
   const statusText = selectedQuick?.label ?? customText.trim()
   const statusEmoji = selectedQuick?.emoji ?? cat?.emoji ?? '✨'
@@ -386,6 +389,38 @@ export default function CategoryPicker({ userId, userMascot, onSubmit, loading }
                     rows={2}
                     className="w-full px-3 py-2 text-sm rounded-2xl border border-gray-200 bg-white/80 text-gray-700 placeholder:text-gray-300 focus:outline-none focus:border-violet-300 resize-none"
                   />
+
+                  {/* Time pickers */}
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Start Time</p>
+                      <input
+                        type="datetime-local"
+                        value={startTime}
+                        onChange={e => setStartTime(e.target.value)}
+                        className="w-full px-3 py-2 text-xs rounded-2xl border border-gray-200 bg-white/80 text-gray-700 focus:outline-none focus:border-violet-300"
+                      />
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">End Time <span className="font-normal normal-case">(optional)</span></p>
+                        {endTime && (
+                          <button
+                            onClick={() => setEndTime('')}
+                            className="text-[10px] font-semibold text-gray-400 hover:text-red-400 px-2 py-0.5 rounded-full hover:bg-red-50 transition-colors"
+                          >
+                            Clear (continuous)
+                          </button>
+                        )}
+                      </div>
+                      <input
+                        type="datetime-local"
+                        value={endTime}
+                        onChange={e => setEndTime(e.target.value)}
+                        className="w-full px-3 py-2 text-xs rounded-2xl border border-gray-200 bg-white/80 text-gray-700 focus:outline-none focus:border-violet-300"
+                      />
+                    </div>
+                  </div>
 
                   <button
                     onClick={() => setIsShared(p => !p)}
