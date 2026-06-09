@@ -34,13 +34,15 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
     await prisma.statusEntry.delete({ where: { id: params.id } })
 
-    if (reopenPrevious && entry.startTime) {
-      // Find entry for same user whose endTime matches this entry's startTime
+    if (reopenPrevious) {
+      // Find the entry that was closed when this one was created:
+      // same user, started before this entry, and ended right when this one started.
       const entryStart = new Date(entry.startTime)
-      // Look for the entry that was closed when this one was created
       const previous = await prisma.statusEntry.findFirst({
         where: {
           userId: entry.userId,
+          id: { not: entry.id },
+          startTime: { lt: entryStart },
           endTime: {
             gte: new Date(entryStart.getTime() - 60000),
             lte: new Date(entryStart.getTime() + 60000),
