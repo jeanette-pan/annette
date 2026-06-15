@@ -214,7 +214,7 @@ export default function HomePage() {
   const handleDelete = async (entryId: string) => {
     setTodayEntries(prev => prev.filter(e => e.id !== entryId))
     try {
-      await fetch(`/api/status/${entryId}?reopenPrevious=true`, { method: 'DELETE' })
+      await fetch(`/api/status/${entryId}`, { method: 'DELETE' })
       await fetchCurrentStatus()
       await fetchTodayEntries()
     } catch (err) {

@@ -265,12 +265,19 @@ export default function SplitTimeline({ entries, date, jEmotions = [], aEmotions
     const overlapMap = new Map<string, number>()
     const connectors: { top: number; height: number; ms: number }[] = []
 
+    // Cap all entry ranges to the viewed day so yesterday's shared entries
+    // don't bleed their glow/heart into today's timeline.
+    const dayStartMs = new Date(date + 'T00:00:00').getTime()
+    const dayEndMs = date === todayStr ? now.getTime() : new Date(date + 'T23:59:59.999').getTime() + 1
+
     for (const j of sharedJ) {
-      const jS = new Date(j.startTime).getTime()
-      const jE = j.endTime ? new Date(j.endTime).getTime() : now.getTime()
+      const jS = Math.max(new Date(j.startTime).getTime(), dayStartMs)
+      const jE = Math.min(j.endTime ? new Date(j.endTime).getTime() : now.getTime(), dayEndMs)
+      if (jS >= jE) continue
       for (const a of sharedA) {
-        const aS = new Date(a.startTime).getTime()
-        const aE = a.endTime ? new Date(a.endTime).getTime() : now.getTime()
+        const aS = Math.max(new Date(a.startTime).getTime(), dayStartMs)
+        const aE = Math.min(a.endTime ? new Date(a.endTime).getTime() : now.getTime(), dayEndMs)
+        if (aS >= aE) continue
         const os = Math.max(jS, aS)
         const oe = Math.min(jE, aE)
         if (os >= oe) continue
@@ -287,7 +294,7 @@ export default function SplitTimeline({ entries, date, jEmotions = [], aEmotions
       }
     }
     return { overlapMap, connectors }
-  }, [jEntries, aEntries, now, vsm])
+  }, [jEntries, aEntries, now, vsm, date, todayStr])
 
   // Pre-compute emotion segments per entry so renderCol passes stable array references
   // to memo()'d EntryBlock — avoids recomputing on every render

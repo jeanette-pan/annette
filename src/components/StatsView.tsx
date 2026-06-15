@@ -12,7 +12,7 @@ import { useCurrentUser } from './UserSelector'
 import { getUserConfig } from '@/lib/statusConfig'
 import { getWeekStart } from '@/lib/utils'
 import { EMOTIONS, computeDaySegments, getDominantEmotion, type EmotionData } from '@/lib/emotionConfig'
-import { CATEGORIES } from '@/lib/categoryConfig'
+import { CATEGORIES, getCategory } from '@/lib/categoryConfig'
 
 type Goal = {
   id: string
@@ -286,7 +286,7 @@ export default function StatsView() {
       name: label,
       value: data.minutes,
       percentage: data.percentage,
-      color: data.color,
+      color: getCategory(data.categoryId)?.chartColor ?? data.color,
       emoji: data.emoji,
     })),
     [sortedStatuses]
@@ -674,15 +674,18 @@ export default function StatsView() {
                           )
                         }}
                       />
-                      {allStatuses.map((label, idx) => (
-                        <Bar
-                          key={label}
-                          dataKey={label}
-                          stackId="a"
-                          fill={statsData?.stats[label]?.color ?? '#e9d5ff'}
-                          radius={idx === lastStatusIndex ? [4, 4, 0, 0] : [0, 0, 0, 0]}
-                        />
-                      ))}
+                      {allStatuses.map((label, idx) => {
+                        const chartColor = getCategory(statsData?.stats[label]?.categoryId)?.chartColor ?? statsData?.stats[label]?.color ?? '#a78bfa'
+                        return (
+                          <Bar
+                            key={label}
+                            dataKey={label}
+                            stackId="a"
+                            fill={chartColor}
+                            radius={idx === lastStatusIndex ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                          />
+                        )
+                      })}
                     </BarChart>
                   </ResponsiveContainer>
                 </motion.div>
@@ -845,21 +848,23 @@ export default function StatsView() {
                   {period === 'weekly' && (() => {
                     const weekStart = parseISO(getWeekStart(cursor))
                     const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
+                    const today = new Date(); today.setHours(23, 59, 59, 999)
                     return (
                       <div>
                         <div className="flex gap-1.5">
                           {days.map(day => {
                             const ds = format(day, 'yyyy-MM-dd')
-                            const dom = getDominantEmotion(emotionHistory, ds)
+                            const isFuture = day > today
+                            const dom = isFuture ? null : getDominantEmotion(emotionHistory, ds)
                             return (
-                              <div key={ds} className="flex-1 flex flex-col items-center gap-1">
+                              <div key={ds} className={`flex-1 flex flex-col items-center gap-1 ${isFuture ? 'opacity-30' : ''}`}>
                                 <div
                                   className="w-full h-8 rounded-lg"
                                   style={{
                                     backgroundColor: dom ? dom.selectorBg : '#f3f4f6',
                                     boxShadow: dom ? `0 0 6px ${dom.glowColor}` : undefined,
                                   }}
-                                  title={dom ? `${dom.emoji} ${dom.label}` : 'No data'}
+                                  title={isFuture ? 'Future' : dom ? `${dom.emoji} ${dom.label}` : 'No data'}
                                 />
                                 <span className="text-[9px] text-gray-400 font-medium">{format(day, 'EEE')}</span>
                               </div>
@@ -884,6 +889,7 @@ export default function StatsView() {
                     const firstDay = new Date(year, month, 1)
                     const dayCount = new Date(year, month + 1, 0).getDate()
                     const startOffset = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1
+                    const todayMs = new Date().setHours(23, 59, 59, 999)
                     return (
                       <div>
                         <div className="grid grid-cols-7 gap-0.5">
@@ -892,17 +898,19 @@ export default function StatsView() {
                           ))}
                           {Array.from({ length: startOffset }).map((_, i) => <div key={`b${i}`} />)}
                           {Array.from({ length: dayCount }, (_, i) => {
-                            const ds = format(new Date(year, month, i + 1), 'yyyy-MM-dd')
-                            const dom = getDominantEmotion(emotionHistory, ds)
+                            const day = new Date(year, month, i + 1)
+                            const ds = format(day, 'yyyy-MM-dd')
+                            const isFuture = day.getTime() > todayMs
+                            const dom = isFuture ? null : getDominantEmotion(emotionHistory, ds)
                             return (
                               <div
                                 key={ds}
-                                className="h-5 rounded"
+                                className={`h-5 rounded ${isFuture ? 'opacity-20' : ''}`}
                                 style={{
                                   backgroundColor: dom ? dom.selectorBg : '#f9fafb',
                                   boxShadow: dom ? `0 0 3px ${dom.glowColor}` : undefined,
                                 }}
-                                title={dom ? `${dom.emoji} ${dom.label}` : format(new Date(year, month, i + 1), 'MMM d')}
+                                title={isFuture ? '' : dom ? `${dom.emoji} ${dom.label}` : format(day, 'MMM d')}
                               />
                             )
                           })}

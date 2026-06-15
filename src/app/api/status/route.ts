@@ -94,10 +94,16 @@ export async function POST(request: NextRequest) {
     // (i.e. it's the new current status). Retroactive entries with an endTime already
     // set are purely historical and should not disturb whatever is currently active.
     if (!parsedEnd) {
-      await prisma.statusEntry.updateMany({
-        where: { userId, endTime: null, startTime: { lte: parsedStart } },
-        data: { endTime: parsedStart },
+      const openEntry = await prisma.statusEntry.findFirst({
+        where: { userId, endTime: null, startTime: { lt: parsedStart } },
+        orderBy: { startTime: 'desc' },
       })
+      if (openEntry) {
+        await prisma.statusEntry.update({
+          where: { id: openEntry.id },
+          data: { endTime: parsedStart },
+        })
+      }
     }
 
     const entry = await prisma.statusEntry.create({

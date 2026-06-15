@@ -22,7 +22,8 @@ export default function CategoryPicker({ userId, userMascot, onSubmit, loading }
   const [customText, setCustomText] = useState('')
   const [note, setNote] = useState('')
   const [isShared, setIsShared] = useState(false)
-  const [startTime, setStartTime] = useState(() => format(new Date(), "yyyy-MM-dd'T'HH:mm"))
+  const [startTime, setStartTime] = useState('')
+  const [startTimeManual, setStartTimeManual] = useState(false)
   const [endTime, setEndTime] = useState('')
 
   const [quickItems, setQuickItems] = useState<SharedQS[]>([])
@@ -146,21 +147,24 @@ export default function CategoryPicker({ userId, userMascot, onSubmit, loading }
     if (id === catId) {
       setCatId(null); setSelectedQuick(null); setCustomText('')
       setNote(''); setIsShared(false); setManageMode(false)
+      setStartTime(''); setStartTimeManual(false); setEndTime('')
     } else {
       setCatId(id); setSelectedQuick(null); setCustomText('')
       setManageMode(false); setAddingNew(false); setEditingId(null)
+      if (!startTimeManual) setStartTime(format(new Date(), "yyyy-MM-dd'T'HH:mm"))
     }
-  }, [catId])
+  }, [catId, startTimeManual])
 
   const handleSubmit = useCallback(() => {
     if ((!customText.trim() && !selectedQuick) || !cat) return
     const status = selectedQuick?.label ?? customText.trim()
     const emoji = selectedQuick?.emoji ?? cat.emoji
-    if (!status || !startTime) return
-    onSubmit({ status, emoji, note, color: cat.color, startTime, endTime: endTime || undefined, isShared, category: cat.id })
+    if (!status) return
+    const resolvedStart = startTimeManual && startTime ? startTime : format(new Date(), "yyyy-MM-dd'T'HH:mm")
+    onSubmit({ status, emoji, note, color: cat.color, startTime: resolvedStart, endTime: endTime || undefined, isShared, category: cat.id })
     setCatId(null); setSelectedQuick(null); setCustomText(''); setNote(''); setIsShared(false)
-    setStartTime(format(new Date(), "yyyy-MM-dd'T'HH:mm")); setEndTime('')
-  }, [selectedQuick, customText, cat, note, isShared, startTime, endTime, onSubmit])
+    setStartTime(''); setStartTimeManual(false); setEndTime('')
+  }, [selectedQuick, customText, cat, note, isShared, startTime, startTimeManual, endTime, onSubmit])
 
   const statusText = selectedQuick?.label ?? customText.trim()
   const statusEmoji = selectedQuick?.emoji ?? cat?.emoji ?? '✨'
@@ -393,13 +397,26 @@ export default function CategoryPicker({ userId, userMascot, onSubmit, loading }
                   {/* Time pickers */}
                   <div className="space-y-2">
                     <div>
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Start Time</p>
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Start Time</p>
+                        {startTimeManual && (
+                          <button
+                            onClick={() => { setStartTimeManual(false); setStartTime(format(new Date(), "yyyy-MM-dd'T'HH:mm")) }}
+                            className="text-[10px] font-semibold text-gray-400 hover:text-violet-500 px-2 py-0.5 rounded-full hover:bg-violet-50 transition-colors"
+                          >
+                            Reset to now
+                          </button>
+                        )}
+                      </div>
                       <input
                         type="datetime-local"
                         value={startTime}
-                        onChange={e => setStartTime(e.target.value)}
+                        onChange={e => { setStartTime(e.target.value); setStartTimeManual(true) }}
                         className="w-full px-3 py-2 text-xs rounded-2xl border border-gray-200 bg-white/80 text-gray-700 focus:outline-none focus:border-violet-300"
                       />
+                      {!startTimeManual && (
+                        <p className="text-[10px] text-gray-300 mt-0.5 pl-1">Will use exact time when submitted</p>
+                      )}
                     </div>
                     <div>
                       <div className="flex items-center justify-between mb-1">
