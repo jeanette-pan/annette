@@ -258,6 +258,8 @@ export default function SplitTimeline({ entries, date, jEmotions = [], aEmotions
     return { vsm: lo, vem: hi, totalH: (hi - lo) * PX_PER_MIN, hours }
   }, [entries, now, date])
 
+  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), [])
+
   // Overlap detection: produces both overlapMap (glow) and connector bars
   const { overlapMap, connectors } = useMemo(() => {
     const sharedJ = jEntries.filter(e => e.isShared)
@@ -316,7 +318,6 @@ export default function SplitTimeline({ entries, date, jEmotions = [], aEmotions
     return m
   }, [aEntries, aEmotions, now])
 
-  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), [])
   const nowTop = (minOfDay(now) - vsm) * PX_PER_MIN
   const showNowLine = date === todayStr && minOfDay(now) >= vsm && minOfDay(now) <= vem
 
