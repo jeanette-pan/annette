@@ -286,7 +286,7 @@ export default function StatsView() {
       name: label,
       value: data.minutes,
       percentage: data.percentage,
-      color: getCategory(data.categoryId)?.chartColor ?? data.color,
+      color: data.color,
       emoji: data.emoji,
     })),
     [sortedStatuses]
@@ -674,18 +674,15 @@ export default function StatsView() {
                           )
                         }}
                       />
-                      {allStatuses.map((label, idx) => {
-                        const chartColor = getCategory(statsData?.stats[label]?.categoryId)?.chartColor ?? statsData?.stats[label]?.color ?? '#a78bfa'
-                        return (
-                          <Bar
-                            key={label}
-                            dataKey={label}
-                            stackId="a"
-                            fill={chartColor}
-                            radius={idx === lastStatusIndex ? [4, 4, 0, 0] : [0, 0, 0, 0]}
-                          />
-                        )
-                      })}
+                      {allStatuses.map((label, idx) => (
+                        <Bar
+                          key={label}
+                          dataKey={label}
+                          stackId="a"
+                          fill={statsData?.stats[label]?.color ?? '#e9d5ff'}
+                          radius={idx === lastStatusIndex ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                        />
+                      ))}
                     </BarChart>
                   </ResponsiveContainer>
                 </motion.div>
@@ -978,8 +975,8 @@ export default function StatsView() {
                       <span className="text-xl shrink-0">{data.emoji}</span>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between mb-1 gap-2">
-                          <span className="font-bold text-gray-700 text-sm truncate">{label}</span>
-                          <span className="text-xs text-gray-500 font-medium shrink-0">
+                          <span className="font-bold text-gray-900 text-sm truncate">{label}</span>
+                          <span className="text-xs text-gray-700 font-medium shrink-0">
                             {formatMins(data.minutes)} · {data.percentage}%
                           </span>
                         </div>
@@ -990,9 +987,9 @@ export default function StatsView() {
                           />
                         </div>
                         <div className="flex gap-3 mt-1">
-                          <span className="text-xs text-gray-400">{data.count}× logged</span>
-                          <span className="text-xs text-gray-400">avg {formatMins(data.avgMinutesPerDay)}/day</span>
-                          <span className="text-xs text-gray-400">longest {formatMins(data.longestSessionMinutes)}</span>
+                          <span className="text-xs text-gray-600">{data.count}× logged</span>
+                          <span className="text-xs text-gray-600">avg {formatMins(data.avgMinutesPerDay)}/day</span>
+                          <span className="text-xs text-gray-600">longest {formatMins(data.longestSessionMinutes)}</span>
                         </div>
                       </div>
                     </div>

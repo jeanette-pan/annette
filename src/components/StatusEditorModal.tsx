@@ -201,7 +201,7 @@ export default function StatusEditorModal({ isOpen, onClose, onSubmit, initialDa
   const handleSubmit = useCallback(() => {
     const status = selectedQuick?.label ?? customText.trim()
     if (!status || !startTime) return
-    const emoji = selectedQuick?.emoji ?? cat?.emoji ?? '✨'
+    const emoji = selectedQuick?.emoji ?? initialData?.emoji ?? cat?.emoji ?? '✨'
     const color = cat?.color ?? initialData?.color ?? '#e9d5ff'
     onSubmit({
       status, emoji, note, color,
