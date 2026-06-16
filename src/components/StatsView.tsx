@@ -668,7 +668,7 @@ export default function StatsView() {
                         formatter={(value) => {
                           const stat = statsData?.stats[value]
                           return (
-                            <span style={{ fontFamily: 'Nunito', fontSize: '13px', fontWeight: '600', color: stat?.color ?? '#e9d5ff' }}>
+                            <span style={{ fontFamily: 'Nunito', fontSize: '13px', fontWeight: '600', color: '#666666' }}>
                               {stat?.emoji ?? '✨'} {value}
                             </span>
                           )
@@ -707,7 +707,7 @@ export default function StatsView() {
                       paddingAngle={3}
                       dataKey="value"
                       label={({ percentage, fill, x, y }) => percentage >= 5
-                        ? <text x={x} y={y} fill={fill} textAnchor="middle" dominantBaseline="central" style={{ fontFamily: 'Nunito', fontSize: '12px', fontWeight: '700' }}>{percentage}%</text>
+                        ? <text x={x} y={y} fill="#666666" textAnchor="middle" dominantBaseline="central" style={{ fontFamily: 'Nunito', fontSize: '12px', fontWeight: '700' }}>{percentage}%</text>
                         : null
                       }
                       labelLine={false}
@@ -727,7 +727,7 @@ export default function StatsView() {
                       formatter={(value) => {
                         const entry = pieDataByName.get(value as string)
                         return (
-                          <span style={{ fontFamily: 'Nunito', fontSize: '13px', fontWeight: '600', color: entry?.color ?? '#e9d5ff' }}>
+                          <span style={{ fontFamily: 'Nunito', fontSize: '13px', fontWeight: '600', color: '#666666' }}>
                             {entry?.emoji ?? '✨'} {value}
                           </span>
                         )
