@@ -668,7 +668,7 @@ export default function StatsView() {
                         formatter={(value) => {
                           const stat = statsData?.stats[value]
                           return (
-                            <span style={{ fontFamily: 'Nunito', fontSize: '13px', fontWeight: '600' }}>
+                            <span style={{ fontFamily: 'Nunito', fontSize: '13px', fontWeight: '600', color: '#111827' }}>
                               {stat?.emoji ?? '✨'} {value}
                             </span>
                           )
@@ -724,7 +724,7 @@ export default function StatsView() {
                       formatter={(value) => {
                         const entry = pieDataByName.get(value as string)
                         return (
-                          <span style={{ fontFamily: 'Nunito', fontSize: '13px', fontWeight: '600' }}>
+                          <span style={{ fontFamily: 'Nunito', fontSize: '13px', fontWeight: '600', color: '#111827' }}>
                             {entry?.emoji ?? '✨'} {value}
                           </span>
                         )
