@@ -25,9 +25,10 @@ type Props = {
   entry: StatusEntry | null
   isMe: boolean
   currentEmotionId?: string | null
+  onEdit?: (entry: StatusEntry) => void
 }
 
-export default function CurrentStatusCard({ userId, userName, entry, isMe, currentEmotionId }: Props) {
+export default function CurrentStatusCard({ userId, userName, entry, isMe, currentEmotionId, onEdit }: Props) {
   const userConfig = getUserConfig(userId)
   const cardColor = entry?.color ?? userConfig.themeHex
   const [duration, setDuration] = useState<string>('')
@@ -57,12 +58,23 @@ export default function CurrentStatusCard({ userId, userName, entry, isMe, curre
       style={{ backgroundColor: cardColor }}
     >
       {isMe && (
-        <span
-          className="absolute top-3 right-3 text-xs font-bold px-2.5 py-1 rounded-full shadow-sm text-white"
-          style={{ backgroundColor: userConfig.accentHex }}
-        >
-          you
-        </span>
+        <div className="absolute top-3 right-3 flex items-center gap-1.5">
+          {entry && onEdit && (
+            <button
+              onClick={() => onEdit(entry)}
+              className="text-xs font-bold px-2 py-1 rounded-full shadow-sm text-white transition-opacity hover:opacity-80"
+              style={{ backgroundColor: userConfig.accentHex }}
+            >
+              ✏️
+            </button>
+          )}
+          <span
+            className="text-xs font-bold px-2.5 py-1 rounded-full shadow-sm text-white"
+            style={{ backgroundColor: userConfig.accentHex }}
+          >
+            you
+          </span>
+        </div>
       )}
 
       <div className="flex flex-col items-center text-center gap-2">

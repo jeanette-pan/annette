@@ -283,6 +283,7 @@ export default function HomePage() {
                   entry={currentEntries.jeanette}
                   isMe={currentUser?.userId === 'jeanette'}
                   currentEmotionId={emotionCurrents.jeanette}
+                  onEdit={(entry) => setEditEntry(entry as StatusEntry)}
                 />
                 <CurrentStatusCard
                   userId="anthony"
@@ -290,6 +291,7 @@ export default function HomePage() {
                   entry={currentEntries.anthony}
                   isMe={currentUser?.userId === 'anthony'}
                   currentEmotionId={emotionCurrents.anthony}
+                  onEdit={(entry) => setEditEntry(entry as StatusEntry)}
                 />
               </div>
             </section>
