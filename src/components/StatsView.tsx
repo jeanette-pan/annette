@@ -76,8 +76,12 @@ function getPeriodLabel(period: Period, cursor: Date): string {
   return format(cursor, 'yyyy')
 }
 
+// Viewer's IANA timezone — appended to every date-bucketed request so the
+// server computes day/week/month boundaries against the viewer's own clock.
+const VIEWER_TZ = typeof window !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC'
+
 function buildEmotionParams(period: Period, cursor: Date, userId: string): string {
-  const base = `/api/emotions?userId=${userId}`
+  const base = `/api/emotions?userId=${userId}&tz=${encodeURIComponent(VIEWER_TZ)}`
   if (period === 'daily')   return `${base}&date=${format(cursor, 'yyyy-MM-dd')}`
   if (period === 'weekly')  return `${base}&from=${getWeekStart(cursor)}`
   if (period === 'monthly') return `${base}&from=${format(new Date(cursor.getFullYear(), cursor.getMonth(), 1), 'yyyy-MM-dd')}`
@@ -85,7 +89,7 @@ function buildEmotionParams(period: Period, cursor: Date, userId: string): strin
 }
 
 function buildApiParams(period: Period, cursor: Date, userId: string): string {
-  const base = `/api/stats?period=${period}&userId=${userId}`
+  const base = `/api/stats?period=${period}&userId=${userId}&tz=${encodeURIComponent(VIEWER_TZ)}`
   if (period === 'daily') return `${base}&date=${format(cursor, 'yyyy-MM-dd')}`
   if (period === 'weekly') return `${base}&weekStart=${getWeekStart(cursor)}`
   if (period === 'monthly') return `${base}&month=${format(cursor, 'yyyy-MM')}`

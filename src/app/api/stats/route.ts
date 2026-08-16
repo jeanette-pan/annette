@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { CATEGORIES } from '@/lib/categoryConfig'
+import { zonedMidnightUtc, zonedDateStr, nextDateStr, addDaysToDateStr } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,40 +16,40 @@ type StatEntry = {
   longestSessionMinutes: number
 }
 
-function getDateRange(params: URLSearchParams): { start: Date; end: Date; periodDays: number } | null {
+function getDateRange(params: URLSearchParams, tz: string): { start: Date; end: Date; periodDays: number } | null {
   const period = params.get('period') ?? 'monthly'
 
   if (period === 'daily') {
-    const dateStr = params.get('date') ?? new Date().toISOString().substring(0, 10)
-    const start = new Date(`${dateStr}T00:00:00.000Z`)
-    const end = new Date(start)
-    end.setUTCDate(end.getUTCDate() + 1)
+    const dateStr = params.get('date') ?? zonedDateStr(new Date(), tz)
+    const start = zonedMidnightUtc(dateStr, tz)
+    const end = zonedMidnightUtc(nextDateStr(dateStr), tz)
     return { start, end, periodDays: 1 }
   }
 
   if (period === 'weekly') {
-    const weekStart = params.get('weekStart') ?? new Date().toISOString().substring(0, 10)
-    const start = new Date(`${weekStart}T00:00:00.000Z`)
-    const end = new Date(start)
-    end.setUTCDate(end.getUTCDate() + 7)
+    const weekStart = params.get('weekStart') ?? zonedDateStr(new Date(), tz)
+    const start = zonedMidnightUtc(weekStart, tz)
+    const end = zonedMidnightUtc(addDaysToDateStr(weekStart, 7), tz)
     return { start, end, periodDays: 7 }
   }
 
   if (period === 'monthly') {
-    const month = params.get('month') ?? new Date().toISOString().substring(0, 7)
+    const month = params.get('month') ?? zonedDateStr(new Date(), tz).substring(0, 7)
     const [y, m] = month.split('-').map(Number)
-    const start = new Date(Date.UTC(y, m - 1, 1))
-    const end = new Date(Date.UTC(y, m, 1))
-    const periodDays = (end.getTime() - start.getTime()) / 86400000
+    const startStr = `${y}-${String(m).padStart(2, '0')}-01`
+    const nextMonthStr = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`
+    const start = zonedMidnightUtc(startStr, tz)
+    const end = zonedMidnightUtc(nextMonthStr, tz)
+    const periodDays = Math.round((end.getTime() - start.getTime()) / 86400000)
     return { start, end, periodDays }
   }
 
   if (period === 'yearly') {
-    const year = params.get('year') ?? String(new Date().getFullYear())
+    const year = params.get('year') ?? zonedDateStr(new Date(), tz).substring(0, 4)
     const y = Number(year)
-    const start = new Date(Date.UTC(y, 0, 1))
-    const end = new Date(Date.UTC(y + 1, 0, 1))
-    const periodDays = (end.getTime() - start.getTime()) / 86400000
+    const start = zonedMidnightUtc(`${y}-01-01`, tz)
+    const end = zonedMidnightUtc(`${y + 1}-01-01`, tz)
+    const periodDays = Math.round((end.getTime() - start.getTime()) / 86400000)
     return { start, end, periodDays }
   }
 
@@ -59,12 +60,15 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
+    // Viewer's IANA timezone — period boundaries and the daily breakdown are
+    // computed against it so "today"/"this week" match the viewer's own clock.
+    const tz = searchParams.get('tz') || 'UTC'
 
     if (!userId) {
       return NextResponse.json({ error: 'userId is required' }, { status: 400 })
     }
 
-    const range = getDateRange(searchParams)
+    const range = getDateRange(searchParams, tz)
     if (!range) {
       return NextResponse.json({ error: 'Invalid period' }, { status: 400 })
     }
@@ -119,15 +123,14 @@ export async function GET(request: NextRequest) {
 
       let cursor = new Date(clampedStart)
       while (cursor < clampedEnd) {
-        const dayStart = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate()))
-        const dayEnd = new Date(dayStart)
-        dayEnd.setUTCDate(dayEnd.getUTCDate() + 1)
+        const dateStr = zonedDateStr(cursor, tz)
+        const dayStart = zonedMidnightUtc(dateStr, tz)
+        const dayEnd = zonedMidnightUtc(nextDateStr(dateStr), tz)
 
         const segStart = cursor > dayStart ? cursor : dayStart
         const segEnd = clampedEnd < dayEnd ? clampedEnd : dayEnd
         const segMinutes = Math.floor((segEnd.getTime() - segStart.getTime()) / 60000)
 
-        const dateStr = dayStart.toISOString().substring(0, 10)
         if (!dailyMap[dateStr]) dailyMap[dateStr] = {}
         if (!dailyMap[dateStr][catLabel]) {
           dailyMap[dateStr][catLabel] = { status: catLabel, emoji: catEmoji, color: catColor, minutes: 0 }

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { zonedMidnightUtc, addDaysToDateStr } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 
-// GET /api/emotions?userId=X[&date=YYYY-MM-DD][&from=YYYY-MM-DD&to=YYYY-MM-DD]
+// GET /api/emotions?userId=X[&date=YYYY-MM-DD][&from=YYYY-MM-DD&to=YYYY-MM-DD][&tz=IANA]
 // Always includes one day before the start so callers can determine the emotion
 // that was already active at the beginning of the requested window.
 export async function GET(request: NextRequest) {
@@ -11,6 +12,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
     if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 })
+    // Viewer's IANA timezone — the requested date is a calendar date in the
+    // viewer's timezone, not the server's.
+    const tz = searchParams.get('tz') || 'UTC'
 
     let from: Date | undefined
     const date = searchParams.get('date')
@@ -18,11 +22,9 @@ export async function GET(request: NextRequest) {
 
     if (date) {
       // Single-day request: start one calendar day before to capture carry-over emotion
-      from = new Date(date + 'T00:00:00')
-      from.setDate(from.getDate() - 1)
+      from = zonedMidnightUtc(addDaysToDateStr(date, -1), tz)
     } else if (fromParam) {
-      from = new Date(fromParam + 'T00:00:00')
-      from.setDate(from.getDate() - 1)
+      from = zonedMidnightUtc(addDaysToDateStr(fromParam, -1), tz)
     }
 
     const entries = await prisma.emotionEntry.findMany({
