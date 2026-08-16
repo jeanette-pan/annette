@@ -53,13 +53,62 @@ export function isEatingStatus(status: string): boolean {
   return ['eat', 'eating', 'food', 'lunch', 'dinner', 'breakfast', 'meal', 'snack', 'brunch', 'cook', 'cooking', 'coffee', 'drink'].some(k => lower.includes(k))
 }
 
+function getTimeZoneOffsetMinutes(instant: Date, timeZone: string): number {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hourCycle: 'h23',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  })
+  const map: Record<string, string> = {}
+  for (const p of dtf.formatToParts(instant)) if (p.type !== 'literal') map[p.type] = p.value
+  const asUTC = Date.UTC(
+    Number(map.year), Number(map.month) - 1, Number(map.day),
+    Number(map.hour), Number(map.minute), Number(map.second)
+  )
+  return (asUTC - instant.getTime()) / 60000
+}
+
+// UTC instant corresponding to local midnight of `dateStr` (YYYY-MM-DD) in `timeZone`.
+// Used so day boundaries can be computed per-viewer instead of per-poster.
+export function zonedMidnightUtc(dateStr: string, timeZone: string): Date {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const targetWallMs = Date.UTC(y, m - 1, d, 0, 0, 0)
+  let instantMs = targetWallMs
+  for (let i = 0; i < 2; i++) {
+    const offsetMin = getTimeZoneOffsetMinutes(new Date(instantMs), timeZone)
+    instantMs = targetWallMs - offsetMin * 60000
+  }
+  return new Date(instantMs)
+}
+
+export function addDaysToDateStr(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().substring(0, 10)
+}
+
+export function nextDateStr(dateStr: string): string {
+  return addDaysToDateStr(dateStr, 1)
+}
+
+// Calendar date of `instant` as seen in `timeZone`, formatted YYYY-MM-DD.
+export function zonedDateStr(instant: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(instant)
+}
+
+// Local (browser) calendar date, as YYYY-MM-DD — no UTC round trip, so it can't
+// roll over to the wrong day depending on the viewer's offset from UTC.
+export function localDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 export function getWeekStart(date: Date): string {
   // Returns Monday of the week containing date, as YYYY-MM-DD
   const d = new Date(date)
   const day = d.getDay()
   const diff = d.getDate() - day + (day === 0 ? -6 : 1)
   d.setDate(diff)
-  return d.toISOString().substring(0, 10)
+  return localDateStr(d)
 }
 
 export function getSleepGoalKey(userId: string): string {

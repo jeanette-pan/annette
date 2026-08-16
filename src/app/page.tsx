@@ -85,9 +85,10 @@ export default function HomePage() {
   // Fetch emotion history when timeline date changes (not on every 5s poll)
   const fetchEmotionHistory = useCallback(async (date: string) => {
     try {
+      const tz = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)
       const [jRes, aRes] = await Promise.all([
-        fetch(`/api/emotions?userId=jeanette&date=${date}`),
-        fetch(`/api/emotions?userId=anthony&date=${date}`),
+        fetch(`/api/emotions?userId=jeanette&date=${date}&tz=${tz}`),
+        fetch(`/api/emotions?userId=anthony&date=${date}&tz=${tz}`),
       ])
       const [jData, aData] = await Promise.all([jRes.json(), aRes.json()])
       setEmotionEntries({
@@ -120,7 +121,10 @@ export default function HomePage() {
 
   const fetchTodayEntries = useCallback(async () => {
     try {
-      const res = await fetch(`/api/status?date=${timelineDate}`)
+      // Send the viewer's own timezone so entries are bucketed into "today"/
+      // "yesterday" relative to whoever is looking, not whoever posted.
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+      const res = await fetch(`/api/status?date=${timelineDate}&tz=${encodeURIComponent(tz)}`)
       const data = await res.json()
       setTodayEntries(data.entries)
     } catch (err) {

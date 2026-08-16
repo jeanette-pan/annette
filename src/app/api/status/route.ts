@@ -1,14 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { getTodayString } from '@/lib/utils'
+import { getTodayString, zonedMidnightUtc, nextDateStr } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
-
-function prevDateStr(dateStr: string): string {
-  const d = new Date(dateStr + 'T00:00:00Z')
-  d.setUTCDate(d.getUTCDate() - 1)
-  return d.toISOString().substring(0, 10)
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,6 +10,10 @@ export async function GET(request: NextRequest) {
     const date = searchParams.get('date')
     const month = searchParams.get('month')
     const userId = searchParams.get('userId')
+    // Viewer's IANA timezone — day boundaries are computed per-viewer so the
+    // same entry can correctly land on different calendar days for people in
+    // different timezones. Falls back to UTC if the caller doesn't pass one.
+    const tz = searchParams.get('tz') || 'UTC'
 
     const userFilter = userId ? { userId } : {}
 
@@ -28,26 +26,16 @@ export async function GET(request: NextRequest) {
     }
 
     const dateStr = date || getTodayString()
-    const prevDate = prevDateStr(dateStr)
-    // Approximate UTC start of the requested date — used to identify
-    // entries that started the previous local day but cross midnight.
-    const dayStartUtc = new Date(dateStr + 'T00:00:00Z')
+    const dayStartUtc = zonedMidnightUtc(dateStr, tz)
+    const dayEndUtc = zonedMidnightUtc(nextDateStr(dateStr), tz)
 
     const entries = await prisma.statusEntry.findMany({
       where: {
         ...userFilter,
+        startTime: { lt: dayEndUtc },
         OR: [
-          // Normal: entry is tagged to this local date
-          { date: dateStr },
-          // Cross-midnight: entry started the previous local day but hasn't
-          // ended before this date's UTC midnight (or is still open)
-          {
-            date: prevDate,
-            OR: [
-              { endTime: null },
-              { endTime: { gt: dayStartUtc } },
-            ],
-          },
+          { endTime: null },
+          { endTime: { gt: dayStartUtc } },
         ],
       },
       orderBy: { startTime: 'asc' },

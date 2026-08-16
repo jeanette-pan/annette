@@ -226,7 +226,7 @@ export default function SplitTimeline({ entries, date, jEmotions = [], aEmotions
       return { vsm: 480, vem: 1320, totalH: 840 * PX_PER_MIN, hours }
     }
     const mins = entries.flatMap(e => {
-      const isCrossDay = e.date !== date
+      const isCrossDay = localDateStr(new Date(e.startTime)) !== date
       const s = isCrossDay ? 0 : minOfDay(new Date(e.startTime))
       let endMin: number
       if (!e.endTime) {
@@ -258,7 +258,7 @@ export default function SplitTimeline({ entries, date, jEmotions = [], aEmotions
     return { vsm: lo, vem: hi, totalH: (hi - lo) * PX_PER_MIN, hours }
   }, [entries, now, date])
 
-  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), [])
+  const todayStr = useMemo(() => localDateStr(new Date()), [])
 
   // Overlap detection: produces both overlapMap (glow) and connector bars
   const { overlapMap, connectors } = useMemo(() => {
@@ -328,7 +328,7 @@ export default function SplitTimeline({ entries, date, jEmotions = [], aEmotions
     railSide: 'left' | 'right',
   ) => list.flatMap(entry => {
     // Cross-day entries (started previous local day) are clipped to midnight of viewed day
-    const isCrossDay = entry.date !== date
+    const isCrossDay = localDateStr(new Date(entry.startTime)) !== date
     let s: number, e: number
     if (isCrossDay) {
       s = 0
