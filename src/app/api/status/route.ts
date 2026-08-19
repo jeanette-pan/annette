@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { getTodayString, zonedMidnightUtc, nextDateStr } from '@/lib/utils'
+import { getTodayString, zonedMidnightUtc, nextDateStr, addDaysToDateStr } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,11 +28,16 @@ export async function GET(request: NextRequest) {
     const dateStr = date || getTodayString()
     const dayStartUtc = zonedMidnightUtc(dateStr, tz)
     const dayEndUtc = zonedMidnightUtc(nextDateStr(dateStr), tz)
+    // Bound how far back a still-open entry can reach into this day's results —
+    // otherwise a status that was never closed (e.g. someone forgot to update it)
+    // would resurface on every future day forever. One day of lookback is enough
+    // to cover any entry that started "yesterday" and crossed into today.
+    const prevDayStartUtc = zonedMidnightUtc(addDaysToDateStr(dateStr, -1), tz)
 
     const entries = await prisma.statusEntry.findMany({
       where: {
         ...userFilter,
-        startTime: { lt: dayEndUtc },
+        startTime: { gte: prevDayStartUtc, lt: dayEndUtc },
         OR: [
           { endTime: null },
           { endTime: { gt: dayStartUtc } },
